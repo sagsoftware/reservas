@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta id="themeColorMeta" name="theme-color" content="#0A2540" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta id="themeColorMeta" name="theme-color" content="#1565C0" />
   <meta id="appleTitleMeta" name="apple-mobile-web-app-title" content="Reservas" />
   <link id="faviconLink" rel="icon" type="image/png" href="icono_app.png" />
   <link id="appleTouchIcon" rel="apple-touch-icon" href="icono_app.png" />
@@ -37,7 +37,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body {
       font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #061526;
+      background: var(--bg);
       color: var(--text);
       min-height: 100dvh;
       display: flex;
@@ -49,86 +49,15 @@
       max-width: 480px;
       min-height: 100dvh;
       background: var(--bg);
+      padding: 20px 18px 40px 18px;
       display: flex;
-      flex-direction: column;
-      position: relative;
-      overflow-x: hidden;
-    }
-
-    .screen {
-      display: none;
       flex-direction: column;
       gap: 16px;
-      padding: 20px 18px 90px 18px;
-      min-height: 100dvh;
-      animation: fadeIn 0.18s ease;
     }
+
+    .screen { display: none; flex-direction: column; gap: 16px; animation: fadeIn 0.18s ease; }
     .screen.active { display: flex; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* PANTALLA 1: PORTADA CON bg_portada.png IDÉNTICA A LA APP */
-    #screenHome {
-      padding: 0;
-      gap: 0;
-      background-color: #081E36;
-      background-image: url('bg_portada.png');
-      background-size: cover;
-      background-position: center top;
-      background-repeat: no-repeat;
-      justify-content: space-between;
-    }
-
-    .home-top-badge {
-      padding: 46px 18px 12px 18px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 6px;
-    }
-    .biz-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(7, 24, 44, 0.72);
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-      border: 1px solid rgba(255, 255, 255, 0.18);
-      padding: 6px 14px;
-      border-radius: 999px;
-      color: #FFFFFF;
-      font-weight: 700;
-      font-size: 0.92rem;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-    }
-    .biz-chip img {
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      object-fit: cover;
-    }
-    .biz-phone-badge {
-      font-size: 0.82rem;
-      color: rgba(255, 255, 255, 0.85);
-      font-weight: 600;
-      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-    }
-
-    /* Zona inferior encajada en el recuadro oscuro de bg_portada.png */
-    .home-bottom-panel {
-      margin-top: auto;
-      padding: 16px 24px 28px 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .home-actions {
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 11px;
-    }
 
     /* Top Header de pantallas internas */
     .top-bar {
@@ -149,6 +78,82 @@
       cursor: pointer;
     }
 
+    /* Portada (Home) */
+    #screenHome {
+      flex: 1;
+      justify-content: space-between;
+      padding-top: 18px;
+      padding-bottom: 16px;
+    }
+
+    .home-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+    }
+    .biz-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.10);
+      background: #fff;
+    }
+    .biz-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .biz-phone {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    /* Tarjeta central de instalación */
+    .install-card {
+      background: var(--surface);
+      border: 1.5px solid var(--primary-container);
+      border-radius: 22px;
+      padding: 22px 20px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      margin: 8px 0;
+    }
+    .install-card p {
+      font-size: 0.98rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .install-card strong {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* Zona inferior de reserva directa en navegador */
+    .home-bottom-actions {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .direct-book-hint {
+      text-align: center;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: var(--text-muted);
+      padding: 0 8px;
+      margin-bottom: 2px;
+    }
+
     /* Botones Material 3 */
     .btn-primary {
       width: 100%;
@@ -160,22 +165,20 @@
       font-size: 1rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.28);
-      transition: opacity 0.15s, transform 0.1s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transition: opacity 0.15s;
     }
-    .btn-primary:active { transform: scale(0.99); }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-outlined {
       width: 100%;
-      background: rgba(255, 255, 255, 0.95);
+      background: var(--surface);
       color: var(--primary);
       border: 1.5px solid var(--primary);
       border-radius: 26px;
-      padding: 13px 20px;
-      font-size: 0.96rem;
+      padding: 14px 20px;
+      font-size: 0.98rem;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     }
     .btn-outlined:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-danger {
@@ -192,19 +195,19 @@
 
     /* Banner de servicio suspendido / baja */
     .suspended-card {
-      background: rgba(254, 242, 242, 0.96);
+      background: #FEF2F2;
       border: 1.5px solid #EF4444;
       border-radius: 16px;
-      padding: 14px;
+      padding: 16px;
       color: #991B1B;
       text-align: left;
       display: none;
       flex-direction: column;
-      gap: 4px;
+      gap: 6px;
       width: 100%;
     }
-    .suspended-card strong { font-size: 0.96rem; color: #B91C1C; }
-    .suspended-card p { font-size: 0.86rem; line-height: 1.35; }
+    .suspended-card strong { font-size: 1rem; color: #B91C1C; }
+    .suspended-card p { font-size: 0.9rem; line-height: 1.4; }
 
     /* Chips de servicios */
     .section-label { font-size: 0.92rem; font-weight: 700; color: var(--text); }
@@ -345,55 +348,46 @@
     .loader {
       text-align: center;
       padding: 40px 20px;
-      color: #FFFFFF;
+      color: var(--primary);
       font-weight: 600;
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #081E36;
     }
-
-    /* Banner instalación PWA */
-    #installBanner {
-      position: fixed; bottom: 12px; left: 12px; right: 12px;
-      max-width: 456px; margin: 0 auto;
-      background: #1E293B; color: #fff; padding: 14px 16px;
-      border-radius: 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.35);
-      display: none; z-index: 9999; font-size: 0.88rem; line-height: 1.4;
-    }
-    #installBanner strong { color: #60A5FA; }
-    .banner-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
-    .btn-sm { padding: 7px 14px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
   </style>
 </head>
 <body>
   <div class="app-shell">
     <div id="globalLoading" class="loader">Cargando agenda...</div>
 
-    <!-- PANTALLA 1: PORTADA IDÉNTICA A LA APP -->
+    <!-- PANTALLA 1: PORTADA (HOME) -->
     <div id="screenHome" class="screen">
-      <div class="home-top-badge">
-        <div class="biz-chip">
-          <img id="homeLogo" src="icono_app.png" alt="Logo" />
-          <span id="homeBizName">Reserva de Cita</span>
-        </div>
-        <div id="homeBizPhone" class="biz-phone-badge"></div>
+      <div class="home-header">
+        <img id="homeLogo" class="biz-logo" src="icono_app.png" alt="Logo" />
+        <h1 id="homeBizName" class="biz-title">Reserva de Cita</h1>
+        <div id="homeBizPhone" class="biz-phone"></div>
       </div>
 
-      <div class="home-bottom-panel">
-        <div id="suspendedCard" class="suspended-card">
-          <strong id="suspendedTitle">Servicio suspendido</strong>
-          <p id="suspendedMsg"></p>
-          <p id="suspendedPhone"></p>
-        </div>
+      <!-- Tarjeta central de instalación -->
+      <div id="installCard" class="install-card">
+        <p id="installCardText">
+          Instala <strong>Reserva de Cita</strong> en tu móvil como una App: pulsa <strong>Instalar</strong> y se te añadirá en la pantalla de inicio.
+        </p>
+        <button id="btnInstallApp" class="btn-primary">Instalar</button>
+      </div>
 
-        <div id="homeInfoMsg" class="alert-info" style="display:none; width:100%;"></div>
+      <div id="suspendedCard" class="suspended-card">
+        <strong id="suspendedTitle">Servicio suspendido</strong>
+        <p id="suspendedMsg"></p>
+        <p id="suspendedPhone"></p>
+      </div>
 
-        <div class="home-actions">
-          <button id="btnGoBook" class="btn-primary" onclick="openSelectSlot()">Reservar cita</button>
-          <button id="btnGoManage" class="btn-outlined" onclick="openManageScreen()">Modificar / cancelar reserva</button>
-        </div>
+      <div id="homeInfoMsg" class="alert-info" style="display:none; width:100%;"></div>
+
+      <!-- Botones de reserva directa en navegador -->
+      <div class="home-bottom-actions">
+        <p id="directBookHint" class="direct-book-hint">
+          Si no desea la comodidad del acceso directo en su movil, como una app, puede reservar directamente aquí:
+        </p>
+        <button id="btnGoBook" class="btn-primary" onclick="openSelectSlot()">Reservar cita</button>
+        <button id="btnGoManage" class="btn-outlined" onclick="openManageScreen()">Modificar / cancelar reserva</button>
       </div>
     </div>
 
@@ -422,7 +416,7 @@
       </div>
 
       <div id="slotsError" class="alert-error" style="display:none;"></div>
-      <div id="slotsLoading" style="display:none; text-align:center; padding:18px; color:var(--primary); font-weight:600;">Consultando disponibilidad...</div>
+      <div id="slotsLoading" class="loader" style="display:none;">Consultando disponibilidad...</div>
       <div id="slotsContainer" class="slots-grid"></div>
       <div id="closedDayBox" class="card" style="display:none; text-align:center; color:#64748B;">
         El establecimiento permanece cerrado este día.
@@ -517,15 +511,6 @@
     </div>
   </div>
 
-  <!-- Banner de instalación en pantalla de inicio (iPhone y Android) -->
-  <div id="installBanner">
-    <div id="installText"></div>
-    <div class="banner-actions">
-      <button id="btnNativeInstall" class="btn-sm" style="background:#2563EB; color:#fff; display:none;">Instalar App</button>
-      <button class="btn-sm" style="background:rgba(255,255,255,0.16); color:#fff;" onclick="dismissBanner()">Entendido</button>
-    </div>
-  </div>
-
   <script>
     const MASTER_GAS_URL = "https://script.google.com/macros/s/AKfycbwVtvLD2Q_ZR2AVEGpzmSi4cPvASPJIUgUvmvJkKwDKOv-lj_8v6JtBxb1TPOs9FMU4/exec";
     const DAYS_EN = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
@@ -562,6 +547,7 @@
       document.documentElement.style.setProperty("--on-primary-container", primary);
 
       document.title = bizName;
+      document.getElementById("themeColorMeta").setAttribute("content", primary);
       document.getElementById("appleTitleMeta").setAttribute("content", bizName);
       document.getElementById("faviconLink").setAttribute("href", iconUrl);
       document.getElementById("appleTouchIcon").setAttribute("href", iconUrl);
@@ -576,8 +562,8 @@
         start_url: window.location.href,
         scope: window.location.href,
         display: "standalone",
-        background_color: "#081E36",
-        theme_color: "#0A2540",
+        background_color: "#F6F8FB",
+        theme_color: primary,
         icons: [
           { src: iconUrl, sizes: "192x192", type: "image/png" },
           { src: iconUrl, sizes: "512x512", type: "image/png" }
@@ -651,7 +637,7 @@
 
         document.getElementById("globalLoading").style.display = "none";
         showScreen("screenHome");
-        setupInstallBanner(CONFIG.nombreNegocio || AGENDA_CODE);
+        setupInstallCard(CONFIG.nombreNegocio || AGENDA_CODE);
       } catch (err) {
         document.getElementById("globalLoading").textContent = "Error conectando con la agenda: " + err.message;
       }
@@ -989,7 +975,7 @@
       document.getElementById("manageDateLabel").textContent = formatDateLongEs(manageDate);
 
       const grid = document.getElementById("manageSlotsGrid");
-      grid.innerHTML = "<div style='grid-column:span 3; text-align:center; padding:12px; color:var(--primary); font-weight:600;'>Cargando horas...</div>";
+      grid.innerHTML = "<div class='loader' style='grid-column:span 3'>Cargando horas...</div>";
 
       const dayKey = DAYS_EN[manageDate.getDay()];
       const ranges = (CONFIG.horariosSemanales || {})[dayKey] || [];
@@ -1082,42 +1068,42 @@
       }
     }
 
+    // Instalación en pantalla de inicio (tarjeta central)
     let deferredPrompt = null;
     window.addEventListener("beforeinstallprompt", (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      const btn = document.getElementById("btnNativeInstall");
-      if (btn) btn.style.display = "inline-block";
     });
 
-    function setupInstallBanner(bizName) {
+    function setupInstallCard(bizName) {
+      const card = document.getElementById("installCard");
+      const textEl = document.getElementById("installCardText");
+      const btnInstall = document.getElementById("btnInstallApp");
+      const hintEl = document.getElementById("directBookHint");
+
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
-      if (isStandalone || sessionStorage.getItem("pwa_closed_" + AGENDA_CODE)) return;
-
-      const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
-      const banner = document.getElementById("installBanner");
-      const text = document.getElementById("installText");
-
-      if (isIos) {
-        text.innerHTML = `Añade <strong>${bizName}</strong> como App en tu iPhone: pulsa <strong>Compartir (□↑)</strong> abajo y elige <strong>"Añadir a pantalla de inicio"</strong>.`;
-      } else {
-        text.innerHTML = `Instala <strong>${bizName}</strong> en tu móvil como App: pulsa <strong>Instalar App</strong> o el menú <strong>⋮ → "Añadir a pantalla de inicio"</strong>.`;
+      if (isStandalone) {
+        card.style.display = "none";
+        if (hintEl) hintEl.style.display = "none";
+        return;
       }
-      banner.style.display = "block";
 
-      document.getElementById("btnNativeInstall").onclick = async () => {
+      textEl.innerHTML = `Instala <strong>${bizName}</strong> en tu móvil como una App: pulsa <strong>Instalar</strong> y se te añadirá en la pantalla de inicio.`;
+
+      btnInstall.onclick = async () => {
         if (deferredPrompt) {
           deferredPrompt.prompt();
           await deferredPrompt.userChoice;
           deferredPrompt = null;
-          dismissBanner();
+        } else {
+          const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+          if (isIos) {
+            alert(`Para instalar ${bizName} en tu iPhone:\n\n1. Pulsa el icono Compartir (□↑) abajo en Safari.\n2. Selecciona "Añadir a pantalla de inicio".`);
+          } else {
+            alert(`Para instalar ${bizName} en tu móvil:\n\n1. Pulsa el menú del navegador (⋮ arriba a la derecha).\n2. Selecciona "Instalar aplicación" o "Añadir a pantalla de inicio".`);
+          }
         }
       };
-    }
-
-    function dismissBanner() {
-      sessionStorage.setItem("pwa_closed_" + AGENDA_CODE, "1");
-      document.getElementById("installBanner").style.display = "none";
     }
 
     bootstrap();
