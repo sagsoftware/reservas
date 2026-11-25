@@ -181,6 +181,29 @@
       cursor: pointer;
     }
     .btn-outlined:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-reminder {
+      width: 100%;
+      background: #0F766E;
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.22);
+    }
+    .btn-gcal {
+      width: 100%;
+      background: var(--surface);
+      color: #0F766E;
+      border: 1.5px solid #0F766E;
+      border-radius: 26px;
+      padding: 13px 20px;
+      font-size: 0.94rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
     .btn-danger {
       width: 100%;
       background: #DC2626;
@@ -345,6 +368,22 @@
       letter-spacing: 2px;
     }
 
+    .reminder-box {
+      background: #F0FDFA;
+      border: 1px solid #99F6E4;
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .reminder-box-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #115E59;
+      text-align: center;
+    }
+
     .loader {
       text-align: center;
       padding: 40px 20px;
@@ -456,7 +495,7 @@
       <button id="btnSubmitBooking" class="btn-primary" onclick="submitBooking()">Confirmar reserva</button>
     </div>
 
-    <!-- PANTALLA 4: RESERVA CONFIRMADA -->
+    <!-- PANTALLA 4: RESERVA CONFIRMADA + RECORDATORIOS -->
     <div id="screenConfirmed" class="screen">
       <div class="top-bar">
         <h2>Cita confirmada</h2>
@@ -467,6 +506,12 @@
         <div id="confirmedCode" class="code-box"></div>
         <button class="btn-outlined" onclick="copyConfirmedCode()">Copiar código de reserva</button>
         <div id="confirmedDetails" style="font-size:0.95rem; line-height:1.6;"></div>
+
+        <div class="reminder-box">
+          <div class="reminder-box-title">Activa un aviso automático en tu móvil (24 h y 1 h antes):</div>
+          <button class="btn-reminder" onclick="downloadIcsReminder()">Guardar recordatorio en mi calendario (.ics)</button>
+          <button class="btn-gcal" onclick="openGoogleCalendarReminder()">Añadir a Google Calendar</button>
+        </div>
       </div>
       <button class="btn-primary" onclick="showScreen('screenHome')">Volver al inicio</button>
     </div>
@@ -524,6 +569,7 @@
     selectedDate.setHours(0, 0, 0, 0);
     let selectedSlotStart = null;
     let selectedSlotEnd = null;
+    let lastConfirmedBooking = null;
 
     let foundReservation = null;
     let manageDate = new Date();
@@ -872,6 +918,14 @@
         }
 
         const code = res.data.reservationCode;
+        lastConfirmedBooking = {
+          code: code,
+          serviceName: selectedService.nombre,
+          start: new Date(selectedSlotStart),
+          end: new Date(selectedSlotEnd),
+          clientName: `${firstName} ${lastName}`.trim()
+        };
+
         document.getElementById("confirmedCode").textContent = code;
         document.getElementById("confirmedDetails").innerHTML = `
           <strong>Servicio:</strong> ${selectedService.nombre}<br/>
@@ -892,6 +946,97 @@
       const code = document.getElementById("confirmedCode").textContent;
       navigator.clipboard.writeText(code);
       alert("Código copiado: " + code);
+    }
+
+    // =========================================================================
+    // RECORDATORIOS EN CALENDARIO (.ICS CON ALARMAS + GOOGLE CALENDAR)
+    // =========================================================================
+    function toIcsUtcString(dt) {
+      return dt.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    }
+
+    function escapeIcsText(str) {
+      return String(str || "")
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\r?\n/g, "\\n");
+    }
+
+    function downloadIcsReminder() {
+      if (!lastConfirmedBooking) return;
+      const bizName = (CONFIG && CONFIG.nombreNegocio) || ("Agenda " + AGENDA_CODE);
+      const bizPhone = (CONFIG && CONFIG.telefonoContacto) ? `Tel: ${CONFIG.telefonoContacto}` : "";
+      const summary = `Cita: ${lastConfirmedBooking.serviceName} - ${bizName}`;
+      const description = [
+        `Reserva confirmada en ${bizName}`,
+        `Servicio: ${lastConfirmedBooking.serviceName}`,
+        `Código de reserva: ${lastConfirmedBooking.code}`,
+        bizPhone,
+        `Gestionar cita: ${window.location.href}`
+      ].filter(Boolean).join("\n");
+
+      const nowUtc = toIcsUtcString(new Date());
+      const startUtc = toIcsUtcString(lastConfirmedBooking.start);
+      const endUtc = toIcsUtcString(lastConfirmedBooking.end);
+      const uid = `${lastConfirmedBooking.code}-${AGENDA_CODE}@sagsoftware.github.io`;
+
+      const icsLines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//SAG Software//Reservas PWA//ES",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${nowUtc}`,
+        `DTSTART:${startUtc}`,
+        `DTEND:${endUtc}`,
+        `SUMMARY:${escapeIcsText(summary)}`,
+        `DESCRIPTION:${escapeIcsText(description)}`,
+        `LOCATION:${escapeIcsText(bizName)}`,
+        "STATUS:CONFIRMED",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT24H",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeIcsText("Recordatorio: mañana tienes cita en " + bizName)}`,
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT1H",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeIcsText("Recordatorio: en 1 hora tienes cita en " + bizName)}`,
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n");
+
+      const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Cita_${lastConfirmedBooking.code}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    function openGoogleCalendarReminder() {
+      if (!lastConfirmedBooking) return;
+      const bizName = (CONFIG && CONFIG.nombreNegocio) || ("Agenda " + AGENDA_CODE);
+      const bizPhone = (CONFIG && CONFIG.telefonoContacto) ? `Tel: ${CONFIG.telefonoContacto}` : "";
+      const title = `Cita: ${lastConfirmedBooking.serviceName} - ${bizName}`;
+      const details = [
+        `Reserva confirmada en ${bizName}`,
+        `Servicio: ${lastConfirmedBooking.serviceName}`,
+        `Código de reserva: ${lastConfirmedBooking.code}`,
+        bizPhone,
+        `Gestionar o cancelar cita: ${window.location.href}`
+      ].filter(Boolean).join("\n");
+
+      const datesParam = `${toIcsUtcString(lastConfirmedBooking.start)}/${toIcsUtcString(lastConfirmedBooking.end)}`;
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${encodeURIComponent(datesParam)}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(bizName)}`;
+      window.open(gcalUrl, "_blank", "noopener");
     }
 
     function openManageScreen() {
@@ -1022,6 +1167,15 @@
           alert(res.resultMessage);
           return;
         }
+
+        lastConfirmedBooking = {
+          code: foundReservation.reservationCode,
+          serviceName: selectedService.nombre,
+          start: new Date(manageSelectedStart),
+          end: new Date(manageSelectedEnd),
+          clientName: `${foundReservation.firstName || ""} ${foundReservation.lastName || ""}`.trim()
+        };
+
         document.getElementById("confirmedCode").textContent = foundReservation.reservationCode;
         document.getElementById("confirmedDetails").innerHTML = `
           <strong>Servicio:</strong> ${selectedService.nombre}<br/>
