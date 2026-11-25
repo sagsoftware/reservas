@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta id="themeColorMeta" name="theme-color" content="#1565C0" />
+  <meta id="appleTitleMeta" name="apple-mobile-web-app-title" content="Reservas" />
+  <link id="appleTouchIcon" rel="apple-touch-icon" href="" />
+  <link id="manifestLink" rel="manifest" href="" />
+  <title>Reserva de Cita</title>
+  <style>
+    :root {
+      --primary: #1565C0;
+      --primary-container: #D8E6F5;
+      --on-primary-container: #0B2E59;
+      --bg: #F6F8FB;
+      --surface: #FFFFFF;
+      --surface-variant: #EEF2F6;
+      --outline: #CBD5E1;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --free-bg: #E8F5E9;
+      --free-border: #43A047;
+      --free-text: #1B5E20;
+      --busy-bg: #FFEBEE;
+      --busy-border: #E53935;
+      --busy-text: #B71C1C;
+      --closed-bg: #F1F5F9;
+      --closed-border: #CBD5E1;
+      --closed-text: #94A3B8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100dvh;
+      background: var(--bg);
+      padding: 20px 18px 90px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .screen { display: none; flex-direction: column; gap: 16px; animation: fadeIn 0.18s ease; }
+    .screen.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Top Header de pantallas internas */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .top-bar h2 { font-size: 1.35rem; font-weight: 700; color: var(--text); }
+    .btn-back {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* Portada (Home) idéntica a la APK */
+    .home-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px 8px;
+      gap: 14px;
+    }
+    .biz-logo {
+      width: 112px;
+      height: 112px;
+      border-radius: 26px;
+      object-fit: cover;
+      box-shadow: 0 8px 22px rgba(0,0,0,0.10);
+      background: #fff;
+    }
+    .biz-title {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .biz-phone {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .home-actions {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    /* Botones Material 3 */
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 15px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transition: opacity 0.15s;
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outlined {
+      width: 100%;
+      background: var(--surface);
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-danger {
+      width: 100%;
+      background: #DC2626;
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Banner de servicio suspendido / baja */
+    .suspended-card {
+      background: #FEF2F2;
+      border: 1.5px solid #EF4444;
+      border-radius: 16px;
+      padding: 16px;
+      color: #991B1B;
+      text-align: left;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+    .suspended-card strong { font-size: 1rem; color: #B91C1C; }
+    .suspended-card p { font-size: 0.9rem; line-height: 1.4; }
+
+    /* Chips de servicios */
+    .section-label { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+    .services-list { display: flex; flex-direction: column; gap: 8px; }
+    .service-chip {
+      width: 100%;
+      text-align: left;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1.5px solid var(--outline);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .service-chip.selected {
+      background: var(--primary-container);
+      border-color: var(--primary);
+      color: var(--on-primary-container);
+    }
+
+    /* Selector de fecha */
+    .date-card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 18px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+    .date-title { font-size: 1.05rem; font-weight: 700; text-transform: capitalize; }
+    .date-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-nav {
+      background: var(--bg);
+      border: 1px solid var(--outline);
+      border-radius: 20px;
+      padding: 9px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--primary);
+      cursor: pointer;
+    }
+    .btn-nav:disabled { color: #94A3B8; cursor: not-allowed; }
+
+    /* Leyenda y Cuadrícula de Horas */
+    .legend {
+      display: flex;
+      justify-content: space-around;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; }
+    .dot.free { background: var(--free-bg); border-color: var(--free-border); }
+    .dot.busy { background: var(--busy-bg); border-color: var(--busy-border); }
+    .dot.closed { background: var(--closed-bg); border-color: var(--closed-border); }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+    }
+    .slot-btn {
+      padding: 11px 6px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: center;
+      border: 1.5px solid;
+      cursor: pointer;
+    }
+    .slot-btn.free { background: var(--free-bg); border-color: var(--free-border); color: var(--free-text); }
+    .slot-btn.busy { background: var(--busy-bg); border-color: var(--busy-border); color: var(--busy-text); cursor: not-allowed; }
+    .slot-btn.closed { background: var(--closed-bg); border-color: var(--closed-border); color: var(--closed-text); cursor: not-allowed; }
+    .slot-btn.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    /* Tarjetas y Formularios */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--outline);
+      font-size: 0.98rem;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .alert-error {
+      background: #FEF2F2;
+      border: 1px solid #FCA5A5;
+      color: #B91C1C;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .alert-info {
+      background: #ECFDF5;
+      border: 1px solid #6EE7B7;
+      color: #065F46;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .code-box {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      padding: 14px;
+      border-radius: 14px;
+      text-align: center;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+
+    .loader {
+      text-align: center;
+      padding: 20px;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Banner instalación PWA */
+    #installBanner {
+      position: fixed; bottom: 12px; left: 12px; right: 12px;
+      max-width: 456px; margin: 0 auto;
+      background: #1E293B; color: #fff; padding: 14px 16px;
+      border-radius: 16px; box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+      display: none; z-index: 9999; font-size: 0.88rem; line-height: 1.4;
+    }
+    #installBanner strong { color: #60A5FA; }
+    .banner-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+    .btn-sm { padding: 7px 14px; border-radius: 10px; border: none; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="globalLoading" class="loader">Cargando agenda...</div>
+
+    <!-- PANTALLA 1: PORTADA (HOME) -->
+    <div id="screenHome" class="screen">
+      <div class="home-center">
+        <img id="homeLogo" class="biz-logo" alt="Logo" />
+        <h1 id="homeBizName" class="biz-title">Reserva de Cita</h1>
+        <div id="homeBizPhone" class="biz-phone"></div>
+
+        <div id="suspendedCard" class="suspended-card">
+          <strong id="suspendedTitle">Servicio suspendido</strong>
+          <p id="suspendedMsg"></p>
+          <p id="suspendedPhone"></p>
+        </div>
+
+        <div id="homeInfoMsg" class="alert-info" style="display:none; width:100%;"></div>
+
+        <div class="home-actions">
+          <button id="btnGoBook" class="btn-primary" onclick="openSelectSlot()">Reservar cita</button>
+          <button id="btnGoManage" class="btn-outlined" onclick="openManageScreen()">Modificar / cancelar reserva</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: SELECCIONAR SERVICIO, FECHA Y HORA -->
+    <div id="screenSelectSlot" class="screen">
+      <div class="top-bar">
+        <h2>Reservar cita</h2>
+        <button class="btn-back" onclick="showScreen('screenHome')">Volver</button>
+      </div>
+
+      <div class="section-label">Selecciona el servicio:</div>
+      <div id="servicesContainer" class="services-list"></div>
+
+      <div class="date-card">
+        <div id="selectedDateLabel" class="date-title"></div>
+        <div class="date-nav">
+          <button id="btnPrevDay" class="btn-nav" onclick="changeDay(-1)">&lt; Anterior</button>
+          <button id="btnNextDay" class="btn-nav" onclick="changeDay(1)">Siguiente &gt;</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="dot free"></span> Libre</div>
+        <div class="legend-item"><span class="dot busy"></span> Ocupado</div>
+        <div class="legend-item"><span class="dot closed"></span> Cerrado</div>
+      </div>
+
+      <div id="slotsError" class="alert-error" style="display:none;"></div>
+      <div id="slotsLoading" class="loader" style="display:none;">Consultando disponibilidad...</div>
+      <div id="slotsContainer" class="slots-grid"></div>
+      <div id="closedDayBox" class="card" style="display:none; text-align:center; color:#64748B;">
+        El establecimiento permanece cerrado este día.
+      </div>
+    </div>
+
+    <!-- PANTALLA 3: FORMULARIO DATOS DEL CLIENTE -->
+    <div id="screenBookingForm" class="screen">
+      <div class="top-bar">
+        <h2>Datos de la cita</h2>
+        <button class="btn-back" onclick="showScreen('screenSelectSlot')">Volver</button>
+      </div>
+
+      <div class="card" id="summarySlotCard"></div>
+
+      <div class="card">
+        <div class="field">
+          <label>Nombre *</label>
+          <input type="text" id="inputFirstName" placeholder="Tu nombre" />
+        </div>
+        <div class="field">
+          <label>Apellidos *</label>
+          <input type="text" id="inputLastName" placeholder="Tus apellidos" />
+        </div>
+        <div class="field">
+          <label>Teléfono móvil *</label>
+          <input type="tel" id="inputPhone" placeholder="Ej. 600123456" />
+        </div>
+        <div class="field" id="reasonFieldContainer">
+          <label id="reasonLabel">Motivo de la cita</label>
+          <select id="selectReason" style="display:none;"></select>
+          <textarea id="inputReason" rows="2" placeholder="Indica brevemente el motivo"></textarea>
+        </div>
+      </div>
+
+      <div id="formError" class="alert-error" style="display:none;"></div>
+      <button id="btnSubmitBooking" class="btn-primary" onclick="submitBooking()">Confirmar reserva</button>
+    </div>
+
+    <!-- PANTALLA 4: RESERVA CONFIRMADA -->
+    <div id="screenConfirmed" class="screen">
+      <div class="top-bar">
+        <h2>Cita confirmada</h2>
+      </div>
+      <div class="card">
+        <p style="font-size:0.95rem; color:#166534; font-weight:700;">Tu reserva se ha registrado correctamente.</p>
+        <div style="font-size:0.85rem; color:#64748B;">Guarda este código para modificar o cancelar tu cita:</div>
+        <div id="confirmedCode" class="code-box"></div>
+        <button class="btn-outlined" onclick="copyConfirmedCode()">Copiar código de reserva</button>
+        <div id="confirmedDetails" style="font-size:0.95rem; line-height:1.6;"></div>
+      </div>
+      <button class="btn-primary" onclick="showScreen('screenHome')">Volver al inicio</button>
+    </div>
+
+    <!-- PANTALLA 5: MODIFICAR O CANCELAR RESERVA -->
+    <div id="screenManage" class="screen">
+      <div class="top-bar">
+        <h2>Gestionar reserva</h2>
+        <button class="btn-back" onclick="showScreen('screenHome')">Volver</button>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label>Teléfono con el que reservaste *</label>
+          <input type="tel" id="managePhone" placeholder="Ej. 600123456" />
+        </div>
+        <div class="field">
+          <label>Código de reserva *</label>
+          <input type="text" id="manageCode" placeholder="Ej. A8K9P2M4" style="text-transform:uppercase;" />
+        </div>
+        <button id="btnLookup" class="btn-primary" onclick="lookupReservation()">Buscar mi cita</button>
+      </div>
+
+      <div id="manageError" class="alert-error" style="display:none;"></div>
+
+      <div id="manageResultCard" class="card" style="display:none;">
+        <div style="font-weight:700; font-size:1.05rem; color:var(--primary);">Reserva localizada</div>
+        <div id="manageDetails" style="font-size:0.94rem; line-height:1.55;"></div>
+
+        <hr style="border:none; border-top:1px solid var(--outline);" />
+        <div class="section-label">Cambiar a nueva fecha / hora:</div>
+        <div class="date-nav">
+          <button id="btnManagePrevDay" class="btn-nav" onclick="changeManageDay(-1)">&lt; Anterior</button>
+          <button id="btnManageNextDay" class="btn-nav" onclick="changeManageDay(1)">Siguiente &gt;</button>
+        </div>
+        <div id="manageDateLabel" style="text-align:center; font-weight:700; text-transform:capitalize;"></div>
+        <div id="manageSlotsGrid" class="slots-grid"></div>
+
+        <button id="btnConfirmModify" class="btn-primary" disabled onclick="confirmModifyBooking()">Guardar nuevo horario</button>
+        <button id="btnConfirmCancel" class="btn-danger" onclick="confirmCancelBooking()">Cancelar cita definitivamente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Banner de instalación en pantalla de inicio (iPhone y Android) -->
+  <div id="installBanner">
+    <div id="installText"></div>
+    <div class="banner-actions">
+      <button id="btnNativeInstall" class="btn-sm" style="background:#2563EB; color:#fff; display:none;">Instalar App</button>
+      <button class="btn-sm" style="background:rgba(255,255,255,0.16); color:#fff;" onclick="dismissBanner()">Entendido</button>
+    </div>
+  </div>
+
+  <script>
+    const MASTER_GAS_URL = "https://script.google.com/macros/s/AKfycbwPJdBvQ6hFg82a9YJjpWxH_ZmFlAmn1YLrQrOZLtnCFdjdHsw3C_45yALIBdwaN5Th/exec";
+    const DAYS_EN = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const params = new URLSearchParams(window.location.search);
+    const AGENDA_CODE = (params.get("agenda") || "").trim().toUpperCase();
+
+    let CONFIG = null;
+    let SERVICE_STATUS = "ACTIVO";
+    let selectedService = null;
+    let selectedDate = new Date();
+    selectedDate.setHours(0, 0, 0, 0);
+    let selectedSlotStart = null;
+    let selectedSlotEnd = null;
+
+    // Estado gestión (modificar/cancelar)
+    let foundReservation = null;
+    let manageDate = new Date();
+    let manageSelectedStart = null;
+    let manageSelectedEnd = null;
+
+    function generateFallbackIcon(name, bgColor) {
+      const c = document.createElement("canvas");
+      c.width = 512; c.height = 512;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = bgColor || "#1565C0";
+      ctx.fillRect(0, 0, 512, 512);
+      const words = (name || "RC").trim().split(/\s+/);
+      const initials = words.length >= 2 ? (words[0][0] + words[1][0]).toUpperCase() : (name || "RC").slice(0, 2).toUpperCase();
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 200px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(initials, 256, 268);
+      return c.toDataURL("image/png");
+    }
+
+    function applyBranding(cfg) {
+      const bizName = cfg.nombreNegocio || ("Agenda " + AGENDA_CODE);
+      const primary = cfg.colorPrimario || "#1565C0";
+      const iconUrl = (cfg.logoDataUri && cfg.logoDataUri.startsWith("data:image/"))
+        ? cfg.logoDataUri
+        : generateFallbackIcon(bizName, primary);
+
+      document.documentElement.style.setProperty("--primary", primary);
+      document.documentElement.style.setProperty("--primary-container", primary + "22");
+      document.documentElement.style.setProperty("--on-primary-container", primary);
+
+      document.title = bizName;
+      document.getElementById("themeColorMeta").setAttribute("content", primary);
+      document.getElementById("appleTitleMeta").setAttribute("content", bizName);
+      document.getElementById("appleTouchIcon").setAttribute("href", iconUrl);
+
+      document.getElementById("homeLogo").src = iconUrl;
+      document.getElementById("homeBizName").textContent = bizName;
+      document.getElementById("homeBizPhone").textContent = cfg.telefonoContacto ? ("Tel: " + cfg.telefonoContacto) : "";
+
+      const manifest = {
+        name: bizName,
+        short_name: bizName.length > 15 ? bizName.slice(0, 15) : bizName,
+        start_url: window.location.href,
+        scope: window.location.href,
+        display: "standalone",
+        background_color: "#F6F8FB",
+        theme_color: primary,
+        icons: [
+          { src: iconUrl, sizes: "192x192", type: "image/png" },
+          { src: iconUrl, sizes: "512x512", type: "image/png" }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+      document.getElementById("manifestLink").setAttribute("href", URL.createObjectURL(blob));
+    }
+
+    function updateServiceStatusBanner(status, customMsg) {
+      SERVICE_STATUS = status;
+      const card = document.getElementById("suspendedCard");
+      const btnBook = document.getElementById("btnGoBook");
+      const btnManage = document.getElementById("btnGoManage");
+
+      if (status === "SUSPENDIDO" || status === "BAJA") {
+        card.style.display = "flex";
+        document.getElementById("suspendedTitle").textContent =
+          status === "SUSPENDIDO" ? "Servicio temporalmente suspendido" : "Servicio dado de baja";
+        document.getElementById("suspendedMsg").textContent =
+          customMsg || "No es posible gestionar reservas online en este momento.";
+        document.getElementById("suspendedPhone").textContent =
+          (CONFIG && CONFIG.telefonoContacto) ? ("Contacto directo: " + CONFIG.telefonoContacto) : "";
+        btnBook.disabled = true;
+        btnManage.disabled = true;
+      } else {
+        card.style.display = "none";
+        btnBook.disabled = false;
+        btnManage.disabled = false;
+      }
+    }
+
+    async function apiCall(action, payloadObj) {
+      const resp = await fetch(MASTER_GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: action,
+          agendaCode: AGENDA_CODE,
+          payload: payloadObj || {}
+        })
+      });
+      const json = await resp.json();
+      if (json.resultCode === "SERVICE_SUSPENDED") {
+        updateServiceStatusBanner("SUSPENDIDO", json.resultMessage);
+        showScreen("screenHome");
+        throw new Error(json.resultMessage);
+      }
+      if (json.resultCode === "SERVICE_CANCELLED") {
+        updateServiceStatusBanner("BAJA", json.resultMessage);
+        showScreen("screenHome");
+        throw new Error(json.resultMessage);
+      }
+      return json;
+    }
+
+    async function bootstrap() {
+      if (!AGENDA_CODE) {
+        document.getElementById("globalLoading").textContent = "Falta el código de agenda en la URL (?agenda=CODIGO).";
+        return;
+      }
+      try {
+        const res = await apiCall("getConfig", {});
+        if (res.resultCode !== "OK" || !res.data || !res.data.config) {
+          document.getElementById("globalLoading").textContent = res.resultMessage || "Agenda no encontrada.";
+          return;
+        }
+        CONFIG = res.data.config;
+        applyBranding(CONFIG);
+        updateServiceStatusBanner(res.data.status || "ACTIVO");
+        selectedService = (CONFIG.servicios && CONFIG.servicios[0]) || { id: "general", nombre: "Cita Estándar", duracionMinutos: 30 };
+
+        document.getElementById("globalLoading").style.display = "none";
+        showScreen("screenHome");
+        setupInstallBanner(CONFIG.nombreNegocio || AGENDA_CODE);
+      } catch (err) {
+        document.getElementById("globalLoading").textContent = "Error conectando con la agenda: " + err.message;
+      }
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+      window.scrollTo(0, 0);
+    }
+
+    function formatDateYMD(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function formatDateLongEs(d) {
+      return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    }
+
+    function formatTimeHM(d) {
+      return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function openSelectSlot() {
+      document.getElementById("homeInfoMsg").style.display = "none";
+      renderServices();
+      showScreen("screenSelectSlot");
+      loadSlotsForCurrentDate();
+    }
+
+    function renderServices() {
+      const cont = document.getElementById("servicesContainer");
+      cont.innerHTML = "";
+      (CONFIG.servicios || []).forEach(srv => {
+        const btn = document.createElement("button");
+        btn.className = "service-chip" + (selectedService && selectedService.id === srv.id ? " selected" : "");
+        const pricePart = srv.precioTexto ? ` · ${srv.precioTexto}` : "";
+        btn.textContent = `${srv.nombre} (${srv.duracionMinutos} min${pricePart})`;
+        btn.onclick = () => {
+          selectedService = srv;
+          renderServices();
+          loadSlotsForCurrentDate();
+        };
+        cont.appendChild(btn);
+      });
+    }
+
+    function changeDay(delta) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const next = new Date(selectedDate);
+      next.setDate(next.getDate() + delta);
+      if (next < today) return;
+      selectedDate = next;
+      loadSlotsForCurrentDate();
+    }
+
+    async function loadSlotsForCurrentDate() {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      document.getElementById("btnPrevDay").disabled = selectedDate <= today;
+      document.getElementById("selectedDateLabel").textContent = formatDateLongEs(selectedDate);
+      document.getElementById("slotsError").style.display = "none";
+      document.getElementById("closedDayBox").style.display = "none";
+      const grid = document.getElementById("slotsContainer");
+      grid.innerHTML = "";
+
+      const dayKey = DAYS_EN[selectedDate.getDay()];
+      const ranges = (CONFIG.horariosSemanales || {})[dayKey] || [];
+      if (!ranges.length) {
+        document.getElementById("closedDayBox").style.display = "block";
+        return;
+      }
+
+      document.getElementById("slotsLoading").style.display = "block";
+      try {
+        const ymd = formatDateYMD(selectedDate);
+        const res = await apiCall("getAvailability", { date: ymd });
+        document.getElementById("slotsLoading").style.display = "none";
+        if (res.resultCode !== "OK") {
+          document.getElementById("slotsError").textContent = res.resultMessage;
+          document.getElementById("slotsError").style.display = "block";
+          return;
+        }
+        const occupied = ((res.data && res.data.occupiedIntervals) || []).map(iv => ({
+          start: new Date(iv.start).getTime(),
+          end: new Date(iv.end).getTime()
+        }));
+
+        renderSlotGrid(grid, selectedDate, ranges, occupied, (startDt, endDt) => {
+          selectedSlotStart = startDt;
+          selectedSlotEnd = endDt;
+          openBookingForm();
+        });
+      } catch (e) {
+        document.getElementById("slotsLoading").style.display = "none";
+        document.getElementById("slotsError").textContent = e.message;
+        document.getElementById("slotsError").style.display = "block";
+      }
+    }
+
+    function renderSlotGrid(container, dateObj, ranges, occupied, onSelectFree) {
+      container.innerHTML = "";
+      const stepMin = Math.max(5, Number(CONFIG.intervaloRejillaMinutos || 15));
+      const serviceDur = Number((selectedService && selectedService.duracionMinutos) || CONFIG.duracionPorDefectoMinutos || 30);
+      const nowMs = Date.now();
+      const ymd = formatDateYMD(dateObj);
+
+      const parsedRanges = ranges.map(r => ({
+        s: new Date(`${ymd}T${r.inicio}:00`).getTime(),
+        e: new Date(`${ymd}T${r.fin}:00`).getTime()
+      }));
+      const firstStart = Math.min(...parsedRanges.map(r => r.s));
+      const lastEnd = Math.max(...parsedRanges.map(r => r.e));
+
+      let cursor = firstStart;
+      while (cursor < lastEnd) {
+        const nextCursor = cursor + stepMin * 60000;
+        if (nextCursor > lastEnd) break;
+
+        const containingRange = parsedRanges.find(r => cursor >= r.s && nextCursor <= r.e);
+        const isPast = cursor <= nowMs;
+        const isBusy = occupied.some(o => cursor < o.end && nextCursor > o.start);
+
+        let state = "free";
+        if (!containingRange || isPast) state = "closed";
+        else if (isBusy) state = "busy";
+
+        let canFit = false;
+        if (state === "free" && containingRange) {
+          const serviceEnd = cursor + serviceDur * 60000;
+          const withinClose = serviceEnd <= containingRange.e;
+          const collides = occupied.some(o => cursor < o.end && serviceEnd > o.start);
+          canFit = withinClose && !collides;
+          if (!canFit) state = "closed";
+        }
+
+        const btn = document.createElement("button");
+        btn.className = "slot-btn " + state;
+        const dtStart = new Date(cursor);
+        btn.textContent = formatTimeHM(dtStart);
+
+        if (state === "free" && canFit) {
+          const dtEnd = new Date(cursor + serviceDur * 60000);
+          btn.onclick = () => onSelectFree(dtStart, dtEnd, btn);
+        } else {
+          btn.disabled = true;
+        }
+        container.appendChild(btn);
+        cursor = nextCursor;
+      }
+    }
+
+    function openBookingForm() {
+      document.getElementById("formError").style.display = "none";
+      document.getElementById("summarySlotCard").innerHTML = `
+        <div style="font-weight:700; color:var(--primary);">${selectedService.nombre}</div>
+        <div style="font-size:0.95rem;">${formatDateLongEs(selectedDate)}</div>
+        <div style="font-size:1.05rem; font-weight:700;">De ${formatTimeHM(selectedSlotStart)} a ${formatTimeHM(selectedSlotEnd)}</div>
+      `;
+
+      const isSanitario = CONFIG.tipoNegocio === "sanitario";
+      const cats = CONFIG.categoriasMotivo || [];
+      const sel = document.getElementById("selectReason");
+      const txt = document.getElementById("inputReason");
+      const lbl = document.getElementById("reasonLabel");
+      lbl.textContent = (isSanitario || CONFIG.motivoObligatorio) ? "Motivo de la cita *" : "Motivo de la cita (opcional)";
+
+      if (isSanitario && cats.length > 0) {
+        sel.innerHTML = "";
+        cats.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+        sel.style.display = "block";
+        txt.style.display = "none";
+      } else {
+        sel.style.display = "none";
+        txt.style.display = "block";
+      }
+
+      showScreen("screenBookingForm");
+    }
+
+    async function submitBooking() {
+      const firstName = document.getElementById("inputFirstName").value.trim();
+      const lastName = document.getElementById("inputLastName").value.trim();
+      const phone = document.getElementById("inputPhone").value.trim();
+      const isSanitario = CONFIG.tipoNegocio === "sanitario" && (CONFIG.categoriasMotivo || []).length > 0;
+      const reason = isSanitario
+        ? document.getElementById("selectReason").value
+        : document.getElementById("inputReason").value.trim();
+
+      const errBox = document.getElementById("formError");
+      errBox.style.display = "none";
+
+      if (!firstName || !lastName || !phone) {
+        errBox.textContent = "Nombre, apellidos y teléfono son obligatorios.";
+        errBox.style.display = "block";
+        return;
+      }
+      if ((CONFIG.tipoNegocio === "sanitario" || CONFIG.motivoObligatorio) && !reason) {
+        errBox.textContent = "Debes indicar el motivo de la cita.";
+        errBox.style.display = "block";
+        return;
+      }
+
+      const btn = document.getElementById("btnSubmitBooking");
+      btn.disabled = true;
+      btn.textContent = "Confirmando reserva...";
+
+      try {
+        const res = await apiCall("createBooking", {
+          startIso: selectedSlotStart.toISOString(),
+          endIso: selectedSlotEnd.toISOString(),
+          serviceId: selectedService.id,
+          serviceName: selectedService.nombre,
+          firstName,
+          lastName,
+          phone,
+          reason
+        });
+        btn.disabled = false;
+        btn.textContent = "Confirmar reserva";
+
+        if (res.resultCode !== "OK") {
+          errBox.textContent = res.resultMessage;
+          errBox.style.display = "block";
+          return;
+        }
+
+        const code = res.data.reservationCode;
+        document.getElementById("confirmedCode").textContent = code;
+        document.getElementById("confirmedDetails").innerHTML = `
+          <strong>Servicio:</strong> ${selectedService.nombre}<br/>
+          <strong>Fecha:</strong> ${formatDateLongEs(selectedDate)}<br/>
+          <strong>Horario:</strong> ${formatTimeHM(selectedSlotStart)} - ${formatTimeHM(selectedSlotEnd)}<br/>
+          <strong>Paciente/Cliente:</strong> ${firstName} ${lastName}
+        `;
+        showScreen("screenConfirmed");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Confirmar reserva";
+        errBox.textContent = e.message;
+        errBox.style.display = "block";
+      }
+    }
+
+    function copyConfirmedCode() {
+      const code = document.getElementById("confirmedCode").textContent;
+      navigator.clipboard.writeText(code);
+      alert("Código copiado: " + code);
+    }
+
+    // Gestión: Modificar / Cancelar
+    function openManageScreen() {
+      foundReservation = null;
+      manageSelectedStart = null;
+      document.getElementById("manageError").style.display = "none";
+      document.getElementById("manageResultCard").style.display = "none";
+      showScreen("screenManage");
+    }
+
+    async function lookupReservation() {
+      const phone = document.getElementById("managePhone").value.trim();
+      const code = document.getElementById("manageCode").value.trim().toUpperCase();
+      const errBox = document.getElementById("manageError");
+      errBox.style.display = "none";
+      document.getElementById("manageResultCard").style.display = "none";
+
+      if (!phone || !code) {
+        errBox.textContent = "Introduce tu teléfono y tu código de reserva.";
+        errBox.style.display = "block";
+        return;
+      }
+
+      const btn = document.getElementById("btnLookup");
+      btn.disabled = true;
+      btn.textContent = "Buscando...";
+
+      try {
+        const res = await apiCall("lookupBooking", { phone, reservationCode: code });
+        btn.disabled = false;
+        btn.textContent = "Buscar mi cita";
+
+        if (res.resultCode !== "OK" || !res.data) {
+          errBox.textContent = res.resultMessage;
+          errBox.style.display = "block";
+          return;
+        }
+
+        foundReservation = { ...res.data, phone, reservationCode: code };
+        const st = new Date(foundReservation.startIso);
+        const en = new Date(foundReservation.endIso);
+        selectedService = (CONFIG.servicios || []).find(s => s.id === foundReservation.serviceId)
+          || { id: foundReservation.serviceId, nombre: foundReservation.serviceName, duracionMinutos: Math.round((en - st) / 60000) || 30 };
+
+        document.getElementById("manageDetails").innerHTML = `
+          <strong>Servicio:</strong> ${foundReservation.serviceName}<br/>
+          <strong>Fecha actual:</strong> ${formatDateLongEs(st)}<br/>
+          <strong>Hora actual:</strong> ${formatTimeHM(st)} - ${formatTimeHM(en)}<br/>
+          <strong>Titular:</strong> ${foundReservation.firstName} ${foundReservation.lastName}
+        `;
+
+        manageDate = new Date(st);
+        manageDate.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        if (manageDate < today) manageDate = today;
+
+        document.getElementById("manageResultCard").style.display = "flex";
+        loadManageSlots();
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Buscar mi cita";
+        errBox.textContent = e.message;
+        errBox.style.display = "block";
+      }
+    }
+
+    function changeManageDay(delta) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const next = new Date(manageDate);
+      next.setDate(next.getDate() + delta);
+      if (next < today) return;
+      manageDate = next;
+      loadManageSlots();
+    }
+
+    async function loadManageSlots() {
+      manageSelectedStart = null;
+      document.getElementById("btnConfirmModify").disabled = true;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      document.getElementById("btnManagePrevDay").disabled = manageDate <= today;
+      document.getElementById("manageDateLabel").textContent = formatDateLongEs(manageDate);
+
+      const grid = document.getElementById("manageSlotsGrid");
+      grid.innerHTML = "<div class='loader' style='grid-column:span 3'>Cargando horas...</div>";
+
+      const dayKey = DAYS_EN[manageDate.getDay()];
+      const ranges = (CONFIG.horariosSemanales || {})[dayKey] || [];
+      if (!ranges.length) {
+        grid.innerHTML = "<div style='grid-column:span 3; text-align:center; color:#64748B;'>Cerrado este día</div>";
+        return;
+      }
+
+      const res = await apiCall("getAvailability", { date: formatDateYMD(manageDate) });
+      const occupied = ((res.data && res.data.occupiedIntervals) || []).map(iv => ({
+        start: new Date(iv.start).getTime(),
+        end: new Date(iv.end).getTime()
+      }));
+
+      renderSlotGrid(grid, manageDate, ranges, occupied, (st, en, btnEl) => {
+        grid.querySelectorAll(".slot-btn").forEach(b => b.classList.remove("selected"));
+        btnEl.classList.add("selected");
+        manageSelectedStart = st;
+        manageSelectedEnd = en;
+        document.getElementById("btnConfirmModify").disabled = false;
+      });
+    }
+
+    async function confirmModifyBooking() {
+      if (!foundReservation || !manageSelectedStart) return;
+      const btn = document.getElementById("btnConfirmModify");
+      btn.disabled = true;
+      btn.textContent = "Guardando cambios...";
+
+      try {
+        const res = await apiCall("modifyBooking", {
+          eventId: foundReservation.eventId,
+          phone: foundReservation.phone,
+          reservationCode: foundReservation.reservationCode,
+          newStartIso: manageSelectedStart.toISOString(),
+          newEndIso: manageSelectedEnd.toISOString(),
+          serviceId: selectedService.id,
+          serviceName: selectedService.nombre
+        });
+        btn.disabled = false;
+        btn.textContent = "Guardar nuevo horario";
+
+        if (res.resultCode !== "OK") {
+          alert(res.resultMessage);
+          return;
+        }
+        document.getElementById("confirmedCode").textContent = foundReservation.reservationCode;
+        document.getElementById("confirmedDetails").innerHTML = `
+          <strong>Servicio:</strong> ${selectedService.nombre}<br/>
+          <strong>Nueva fecha:</strong> ${formatDateLongEs(manageDate)}<br/>
+          <strong>Nuevo horario:</strong> ${formatTimeHM(manageSelectedStart)} - ${formatTimeHM(manageSelectedEnd)}
+        `;
+        showScreen("screenConfirmed");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Guardar nuevo horario";
+        alert(e.message);
+      }
+    }
+
+    async function confirmCancelBooking() {
+      if (!foundReservation) return;
+      if (!confirm("¿Seguro que deseas cancelar tu cita definitivamente?")) return;
+
+      const btn = document.getElementById("btnConfirmCancel");
+      btn.disabled = true;
+      btn.textContent = "Cancelando...";
+
+      try {
+        const res = await apiCall("cancelBooking", {
+          eventId: foundReservation.eventId,
+          phone: foundReservation.phone,
+          reservationCode: foundReservation.reservationCode
+        });
+        btn.disabled = false;
+        btn.textContent = "Cancelar cita definitivamente";
+
+        if (res.resultCode !== "OK") {
+          alert(res.resultMessage);
+          return;
+        }
+        const info = document.getElementById("homeInfoMsg");
+        info.textContent = "Tu cita ha sido cancelada correctamente.";
+        info.style.display = "block";
+        showScreen("screenHome");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Cancelar cita definitivamente";
+        alert(e.message);
+      }
+    }
+
+    // Banner instalación PWA en pantalla de inicio
+    let deferredPrompt = null;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById("btnNativeInstall");
+      if (btn) btn.style.display = "inline-block";
+    });
+
+    function setupInstallBanner(bizName) {
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+      if (isStandalone || sessionStorage.getItem("pwa_closed_" + AGENDA_CODE)) return;
+
+      const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+      const banner = document.getElementById("installBanner");
+      const text = document.getElementById("installText");
+
+      if (isIos) {
+        text.innerHTML = `Añade <strong>${bizName}</strong> como App en tu iPhone: pulsa <strong>Compartir (□↑)</strong> abajo y elige <strong>"Añadir a pantalla de inicio"</strong>.`;
+      } else {
+        text.innerHTML = `Instala <strong>${bizName}</strong> en tu móvil como App: pulsa <strong>Instalar App</strong> o el menú <strong>⋮ → "Añadir a pantalla de inicio"</strong>.`;
+      }
+      banner.style.display = "block";
+
+      document.getElementById("btnNativeInstall").onclick = async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+          deferredPrompt = null;
+          dismissBanner();
+        }
+      };
+    }
+
+    function dismissBanner() {
+      sessionStorage.setItem("pwa_closed_" + AGENDA_CODE, "1");
+      document.getElementById("installBanner").style.display = "none";
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
