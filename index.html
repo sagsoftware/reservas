@@ -1,833 +1,1293 @@
-// ============================================================================
-// BACKEND MAESTRO MULTI-AGENDA SAG (100% ALINEADO CON RESERVASAPP + PANEL)
-// ============================================================================
-const VALID_STATUSES = ['ACTIVO', 'SUSPENDIDO', 'BAJA'];
-const AGENDA_PREFIX = 'AGENDA_';
-const DEFAULT_ADMIN_TOKEN = 'Admin'; // Cambia o guarda ADMIN_TOKEN en Script Properties
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta id="themeColorMeta" name="theme-color" content="#1565C0" />
+  <meta id="appleTitleMeta" name="apple-mobile-web-app-title" content="Reservas" />
+  <link id="faviconLink" rel="icon" type="image/png" href="icono_app.png" />
+  <link id="appleTouchIcon" rel="apple-touch-icon" href="icono_app.png" />
+  <link id="manifestLink" rel="manifest" href="" />
+  <title>Reserva de Cita</title>
+  <style>
+    :root {
+      --primary: #1565C0;
+      --primary-container: #D8E6F5;
+      --on-primary-container: #0B2E59;
+      --bg: #F6F8FB;
+      --surface: #FFFFFF;
+      --surface-variant: #EEF2F6;
+      --outline: #CBD5E1;
+      --text: #1E293B;
+      --text-muted: #64748B;
+      --free-bg: #E8F5E9;
+      --free-border: #43A047;
+      --free-text: #1B5E20;
+      --busy-bg: #FFEBEE;
+      --busy-border: #E53935;
+      --busy-text: #B71C1C;
+      --closed-bg: #F1F5F9;
+      --closed-border: #CBD5E1;
+      --closed-text: #94A3B8;
+    }
 
-function getAdminToken_() {
-  const prop = PropertiesService.getScriptProperties().getProperty('ADMIN_TOKEN');
-  return (prop && prop.trim()) ? prop.trim() : DEFAULT_ADMIN_TOKEN;
-}
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #061c3d;
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      justify-content: center;
+    }
 
-function getAgendaRecord_(rawCode) {
-  const code = String(rawCode || '').trim().toUpperCase();
-  if (!code) throw new Error('Falta el código de agenda (agendaCode).');
-  const raw = PropertiesService.getScriptProperties().getProperty(AGENDA_PREFIX + code);
-  if (!raw) throw new Error('Agenda ' + code + ' no registrada en el servidor maestro.');
-  return JSON.parse(raw);
-}
+    .app-shell {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100dvh;
+      background-color: #061c3d;
+      background-image: url('bg_portada.jpg');
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      padding: 20px 18px 40px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
 
-function checkAgendaAccessOrThrow_(record) {
-  const status = String(record.status || 'BAJA').trim().toUpperCase();
-  if (status === 'SUSPENDIDO') {
-    const err = new Error('El servicio de reservas de ' + record.agendaCode + ' se encuentra temporalmente suspendido.');
-    err.customCode = 'SERVICE_SUSPENDED';
-    throw err;
-  }
-  if (status !== 'ACTIVO') {
-    const err = new Error('El servicio de reservas de ' + record.agendaCode + ' ha sido dado de baja.');
-    err.customCode = 'SERVICE_CANCELLED';
-    throw err;
-  }
-}
+    .screen { display: none; flex-direction: column; gap: 16px; animation: fadeIn 0.18s ease; }
+    .screen.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
-function getCalendarForRecord_(record) {
-  const calId = String(record.calendarId || '').trim();
-  if (!calId) throw new Error('La agenda ' + record.agendaCode + ' no tiene Calendar ID configurado.');
-  const cal = CalendarApp.getCalendarById(calId);
-  if (!cal) throw new Error('No hay acceso al calendario (' + calId + '). Compártelo con la cuenta maestra.');
-  return cal;
-}
+    /* Pantallas internas con fondo legible sobre la portada */
+    #screenSelectSlot,
+    #screenBookingForm,
+    #screenConfirmed,
+    #screenManage {
+      background: rgba(246, 248, 251, 0.96);
+      border-radius: 22px;
+      padding: 18px 14px 24px 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+    }
 
-// ============================================================================
-// GET: Consulta de estado (?clientId=...) o apertura WebApp/Panel (?agenda=...)
-// ============================================================================
-function doGet(e) {
-  try {
-    const params = (e && e.parameter) ? e.parameter : {};
-    const action = String(params.action || '').trim().toLowerCase();
+    /* Top Header de pantallas internas */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .top-bar h2 { font-size: 1.35rem; font-weight: 700; color: var(--text); }
+    .btn-back {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
 
-    if (params.clientId && !params.agenda && !params.view) {
-      const code = String(params.clientId).trim().toUpperCase();
-      const raw = PropertiesService.getScriptProperties().getProperty(AGENDA_PREFIX + code);
-      if (!raw) {
-        return jsonOut_({ ok: true, clientId: code, status: 'BAJA', registered: false });
+    /* Portada (Home) */
+    #screenHome {
+      flex: 1;
+      justify-content: space-between;
+      padding-top: 18px;
+      padding-bottom: 16px;
+    }
+
+    .home-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 10px;
+    }
+    .biz-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+      background: #fff;
+    }
+    .biz-title {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+      line-height: 1.2;
+    }
+    .biz-phone {
+      font-size: 0.95rem;
+      color: #E2E8F0;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.55);
+      font-weight: 600;
+    }
+
+    /* Tarjeta central de instalación */
+    .install-card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1.5px solid var(--primary-container);
+      border-radius: 22px;
+      padding: 22px 20px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.30);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      margin: 8px 0;
+    }
+    .install-card p {
+      font-size: 0.98rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .install-card strong {
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    /* Zona inferior de reserva directa en navegador */
+    .home-bottom-actions {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .direct-book-hint {
+      text-align: center;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      color: #E2E8F0;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.65);
+      padding: 0 8px;
+      margin-bottom: 2px;
+    }
+
+    /* Botones Material 3 */
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 15px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+      transition: opacity 0.15s;
+    }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outlined {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-outlined:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-reminder {
+      width: 100%;
+      background: #0F766E;
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(15, 118, 110, 0.22);
+    }
+    .btn-gcal {
+      width: 100%;
+      background: var(--surface);
+      color: #0F766E;
+      border: 1.5px solid #0F766E;
+      border-radius: 26px;
+      padding: 13px 20px;
+      font-size: 0.94rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .btn-danger {
+      width: 100%;
+      background: #DC2626;
+      color: #fff;
+      border: none;
+      border-radius: 26px;
+      padding: 14px 20px;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Banner de servicio suspendido / baja */
+    .suspended-card {
+      background: #FEF2F2;
+      border: 1.5px solid #EF4444;
+      border-radius: 16px;
+      padding: 16px;
+      color: #991B1B;
+      text-align: left;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+    .suspended-card strong { font-size: 1rem; color: #B91C1C; }
+    .suspended-card p { font-size: 0.9rem; line-height: 1.4; }
+
+    /* Chips de servicios */
+    .section-label { font-size: 0.92rem; font-weight: 700; color: var(--text); }
+    .services-list { display: flex; flex-direction: column; gap: 8px; }
+    .service-chip {
+      width: 100%;
+      text-align: left;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1.5px solid var(--outline);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .service-chip.selected {
+      background: var(--primary-container);
+      border-color: var(--primary);
+      color: var(--on-primary-container);
+    }
+
+    /* Selector de fecha */
+    .date-card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 18px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+    .date-title { font-size: 1.05rem; font-weight: 700; text-transform: capitalize; }
+    .date-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn-nav {
+      background: var(--bg);
+      border: 1px solid var(--outline);
+      border-radius: 20px;
+      padding: 9px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--primary);
+      cursor: pointer;
+    }
+    .btn-nav:disabled { color: #94A3B8; cursor: not-allowed; }
+
+    /* Leyenda y Cuadrícula de Horas */
+    .legend {
+      display: flex;
+      justify-content: space-around;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid; }
+    .dot.free { background: var(--free-bg); border-color: var(--free-border); }
+    .dot.busy { background: var(--busy-bg); border-color: var(--busy-border); }
+    .dot.closed { background: var(--closed-bg); border-color: var(--closed-border); }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+    }
+    .slot-btn {
+      padding: 11px 6px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-align: center;
+      border: 1.5px solid;
+      cursor: pointer;
+    }
+    .slot-btn.free { background: var(--free-bg); border-color: var(--free-border); color: var(--free-text); }
+    .slot-btn.busy { background: var(--busy-bg); border-color: var(--busy-border); color: var(--busy-text); cursor: not-allowed; }
+    .slot-btn.closed { background: var(--closed-bg); border-color: var(--closed-border); color: var(--closed-text); cursor: not-allowed; }
+    .slot-btn.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    /* Tarjetas y Formularios */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid var(--outline);
+      font-size: 0.98rem;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .alert-error {
+      background: #FEF2F2;
+      border: 1px solid #FCA5A5;
+      color: #B91C1C;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .alert-info {
+      background: #ECFDF5;
+      border: 1px solid #6EE7B7;
+      color: #065F46;
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .code-box {
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      padding: 14px;
+      border-radius: 14px;
+      text-align: center;
+      font-size: 1.45rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+    }
+
+    .reminder-box {
+      background: #F0FDFA;
+      border: 1px solid #99F6E4;
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .reminder-box-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #115E59;
+      text-align: center;
+    }
+
+    .loader {
+      text-align: center;
+      padding: 40px 20px;
+      color: #FFFFFF;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div id="globalLoading" class="loader">Cargando agenda...</div>
+
+    <!-- PANTALLA 1: PORTADA (HOME) -->
+    <div id="screenHome" class="screen">
+      <div class="home-header">
+        <img id="homeLogo" class="biz-logo" src="icono_app.png" alt="Logo" />
+        <h1 id="homeBizName" class="biz-title">Reserva de Cita</h1>
+        <div id="homeBizPhone" class="biz-phone"></div>
+      </div>
+
+      <!-- Tarjeta central de instalación -->
+      <div id="installCard" class="install-card">
+        <p id="installCardText">
+          Instala <strong>Reserva de Cita</strong> en tu móvil como una App: pulsa <strong>Instalar</strong> y se te añadirá en la pantalla de inicio.
+        </p>
+        <button id="btnInstallApp" class="btn-primary">Instalar</button>
+      </div>
+
+      <div id="suspendedCard" class="suspended-card">
+        <strong id="suspendedTitle">Servicio suspendido</strong>
+        <p id="suspendedMsg"></p>
+        <p id="suspendedPhone"></p>
+      </div>
+
+      <div id="homeInfoMsg" class="alert-info" style="display:none; width:100%;"></div>
+
+      <!-- Botones de reserva directa en navegador -->
+      <div class="home-bottom-actions">
+        <p id="directBookHint" class="direct-book-hint">
+          Si no desea la comodidad del acceso directo en su movil, como una app, puede reservar directamente aquí:
+        </p>
+        <button id="btnGoBook" class="btn-primary" onclick="openSelectSlot()">Reservar cita</button>
+        <button id="btnGoManage" class="btn-outlined" onclick="openManageScreen()">Modificar / cancelar reserva</button>
+      </div>
+    </div>
+
+    <!-- PANTALLA 2: SELECCIONAR SERVICIO, FECHA Y HORA -->
+    <div id="screenSelectSlot" class="screen">
+      <div class="top-bar">
+        <h2>Reservar cita</h2>
+        <button class="btn-back" onclick="showScreen('screenHome')">Volver</button>
+      </div>
+
+      <div class="section-label">Selecciona el servicio:</div>
+      <div id="servicesContainer" class="services-list"></div>
+
+      <div class="date-card">
+        <div id="selectedDateLabel" class="date-title"></div>
+        <div class="date-nav">
+          <button id="btnPrevDay" class="btn-nav" onclick="changeDay(-1)">&lt; Anterior</button>
+          <button id="btnNextDay" class="btn-nav" onclick="changeDay(1)">Siguiente &gt;</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div class="legend-item"><span class="dot free"></span> Libre</div>
+        <div class="legend-item"><span class="dot busy"></span> Ocupado</div>
+        <div class="legend-item"><span class="dot closed"></span> Cerrado</div>
+      </div>
+
+      <div id="slotsError" class="alert-error" style="display:none;"></div>
+      <div id="slotsLoading" class="loader" style="display:none; color:var(--primary); text-shadow:none;">Consultando disponibilidad...</div>
+      <div id="slotsContainer" class="slots-grid"></div>
+      <div id="closedDayBox" class="card" style="display:none; text-align:center; color:#64748B;">
+        El establecimiento permanece cerrado este día.
+      </div>
+    </div>
+
+    <!-- PANTALLA 3: FORMULARIO DATOS DEL CLIENTE -->
+    <div id="screenBookingForm" class="screen">
+      <div class="top-bar">
+        <h2>Datos de la cita</h2>
+        <button class="btn-back" onclick="showScreen('screenSelectSlot')">Volver</button>
+      </div>
+
+      <div class="card" id="summarySlotCard"></div>
+
+      <div class="card">
+        <div class="field">
+          <label>Nombre *</label>
+          <input type="text" id="inputFirstName" placeholder="Tu nombre" />
+        </div>
+        <div class="field">
+          <label>Apellidos *</label>
+          <input type="text" id="inputLastName" placeholder="Tus apellidos" />
+        </div>
+        <div class="field">
+          <label>Teléfono móvil *</label>
+          <input type="tel" id="inputPhone" placeholder="Ej. 600123456" />
+        </div>
+        <div class="field" id="reasonFieldContainer">
+          <label id="reasonLabel">Motivo de la cita</label>
+          <select id="selectReason" style="display:none;"></select>
+          <textarea id="inputReason" rows="2" placeholder="Indica brevemente el motivo"></textarea>
+        </div>
+      </div>
+
+      <div id="formError" class="alert-error" style="display:none;"></div>
+      <button id="btnSubmitBooking" class="btn-primary" onclick="submitBooking()">Confirmar reserva</button>
+    </div>
+
+    <!-- PANTALLA 4: RESERVA CONFIRMADA + RECORDATORIOS -->
+    <div id="screenConfirmed" class="screen">
+      <div class="top-bar">
+        <h2>Cita confirmada</h2>
+      </div>
+      <div class="card">
+        <p style="font-size:0.95rem; color:#166534; font-weight:700;">Tu reserva se ha registrado correctamente.</p>
+        <div style="font-size:0.85rem; color:#64748B;">Guarda este código para modificar o cancelar tu cita:</div>
+        <div id="confirmedCode" class="code-box"></div>
+        <button class="btn-outlined" onclick="copyConfirmedCode()">Copiar código de reserva</button>
+        <div id="confirmedDetails" style="font-size:0.95rem; line-height:1.6;"></div>
+
+        <div class="reminder-box">
+          <div class="reminder-box-title">Activa un aviso automático en tu móvil (24 h y 1 h antes):</div>
+          <button class="btn-reminder" onclick="downloadIcsReminder()">Guardar recordatorio en mi calendario (.ics)</button>
+          <button class="btn-gcal" onclick="openGoogleCalendarReminder()">Añadir a Google Calendar</button>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="showScreen('screenHome')">Volver al inicio</button>
+    </div>
+
+    <!-- PANTALLA 5: MODIFICAR O CANCELAR RESERVA -->
+    <div id="screenManage" class="screen">
+      <div class="top-bar">
+        <h2>Gestionar reserva</h2>
+        <button class="btn-back" onclick="showScreen('screenHome')">Volver</button>
+      </div>
+
+      <div class="card">
+        <div class="field">
+          <label>Teléfono con el que reservaste *</label>
+          <input type="tel" id="managePhone" placeholder="Ej. 600123456" />
+        </div>
+        <div class="field">
+          <label>Código de reserva *</label>
+          <input type="text" id="manageCode" placeholder="Ej. A8K9P2M4" style="text-transform:uppercase;" />
+        </div>
+        <button id="btnLookup" class="btn-primary" onclick="lookupReservation()">Buscar mi cita</button>
+      </div>
+
+      <div id="manageError" class="alert-error" style="display:none;"></div>
+
+      <div id="manageResultCard" class="card" style="display:none;">
+        <div style="font-weight:700; font-size:1.05rem; color:var(--primary);">Reserva localizada</div>
+        <div id="manageDetails" style="font-size:0.94rem; line-height:1.55;"></div>
+
+        <hr style="border:none; border-top:1px solid var(--outline);" />
+        <div class="section-label">Cambiar a nueva fecha / hora:</div>
+        <div class="date-nav">
+          <button id="btnManagePrevDay" class="btn-nav" onclick="changeManageDay(-1)">&lt; Anterior</button>
+          <button id="btnManageNextDay" class="btn-nav" onclick="changeManageDay(1)">Siguiente &gt;</button>
+        </div>
+        <div id="manageDateLabel" style="text-align:center; font-weight:700; text-transform:capitalize;"></div>
+        <div id="manageSlotsGrid" class="slots-grid"></div>
+
+        <button id="btnConfirmModify" class="btn-primary" disabled onclick="confirmModifyBooking()">Guardar nuevo horario</button>
+        <button id="btnConfirmCancel" class="btn-danger" onclick="confirmCancelBooking()">Cancelar cita definitivamente</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const MASTER_GAS_URL = "https://script.google.com/macros/s/AKfycbxmbvJkocw-nHgpQGUp5ODYvRb-m1AuvblmBkU_VIOJ5RHLR2uCMsMkBQP_PqGm7CKZ/exec";
+    const DAYS_EN = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
+    const params = new URLSearchParams(window.location.search);
+    const AGENDA_CODE = (params.get("agenda") || "").trim().toUpperCase();
+
+    let CONFIG = null;
+    let SERVICE_STATUS = "ACTIVO";
+    let selectedService = null;
+    let selectedDate = new Date();
+    selectedDate.setHours(0, 0, 0, 0);
+    let selectedSlotStart = null;
+    let selectedSlotEnd = null;
+    let lastConfirmedBooking = null;
+
+    let foundReservation = null;
+    let manageDate = new Date();
+    let manageSelectedStart = null;
+    let manageSelectedEnd = null;
+
+    function getAbsoluteAssetUrl(fileName) {
+      return new URL(fileName, window.location.href).href;
+    }
+
+    function applyBranding(cfg) {
+      const bizName = cfg.nombreNegocio || ("Agenda " + AGENDA_CODE);
+      const primary = cfg.colorPrimario || "#1565C0";
+      const defaultAppIcon = getAbsoluteAssetUrl("icono_app.png");
+
+      // Logo para la portada
+      const logoUrl = (cfg.logoDataUri && cfg.logoDataUri.startsWith("data:image/"))
+        ? cfg.logoDataUri
+        : defaultAppIcon;
+
+      // Icono para acceso directo / favicon (prioriza icono propio; si no existe, usa icono_app.png)
+      const customIcon = cfg.iconDataUri || cfg.iconoAppDataUri || "";
+      const appIconUrl = (customIcon && customIcon.startsWith("data:image/"))
+        ? customIcon
+        : defaultAppIcon;
+
+      document.documentElement.style.setProperty("--primary", primary);
+      document.documentElement.style.setProperty("--primary-container", primary + "22");
+      document.documentElement.style.setProperty("--on-primary-container", primary);
+
+      document.title = bizName;
+      document.getElementById("themeColorMeta").setAttribute("content", primary);
+      document.getElementById("appleTitleMeta").setAttribute("content", bizName);
+      document.getElementById("faviconLink").setAttribute("href", appIconUrl);
+      document.getElementById("appleTouchIcon").setAttribute("href", appIconUrl);
+
+      document.getElementById("homeLogo").src = logoUrl;
+      document.getElementById("homeBizName").textContent = bizName;
+      document.getElementById("homeBizPhone").textContent = cfg.telefonoContacto ? ("Tel: " + cfg.telefonoContacto) : "";
+
+      const manifest = {
+        name: bizName,
+        short_name: bizName.length > 15 ? bizName.slice(0, 15) : bizName,
+        start_url: window.location.href,
+        scope: window.location.href,
+        display: "standalone",
+        background_color: "#061c3d",
+        theme_color: primary,
+        icons: [
+          { src: appIconUrl, sizes: "192x192", type: "image/png" },
+          { src: appIconUrl, sizes: "512x512", type: "image/png" }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+      document.getElementById("manifestLink").setAttribute("href", URL.createObjectURL(blob));
+    }
+
+    function updateServiceStatusBanner(status, customMsg) {
+      SERVICE_STATUS = status;
+      const card = document.getElementById("suspendedCard");
+      const btnBook = document.getElementById("btnGoBook");
+      const btnManage = document.getElementById("btnGoManage");
+
+      if (status === "SUSPENDIDO" || status === "BAJA") {
+        card.style.display = "flex";
+        document.getElementById("suspendedTitle").textContent =
+          status === "SUSPENDIDO" ? "Servicio temporalmente suspendido" : "Servicio dado de baja";
+        document.getElementById("suspendedMsg").textContent =
+          customMsg || "No es posible gestionar reservas online en este momento.";
+        document.getElementById("suspendedPhone").textContent =
+          (CONFIG && CONFIG.telefonoContacto) ? ("Contacto directo: " + CONFIG.telefonoContacto) : "";
+        btnBook.disabled = true;
+        btnManage.disabled = true;
+      } else {
+        card.style.display = "none";
+        btnBook.disabled = false;
+        btnManage.disabled = false;
       }
-      const rec = JSON.parse(raw);
-      return jsonOut_({ ok: true, clientId: code, status: rec.status || 'BAJA', registered: true, updatedAt: rec.updatedAt || null });
     }
 
-    if (action === 'list') {
-      if (String(params.token || '').trim() !== getAdminToken_()) {
-        return jsonOut_({ ok: false, error: 'UNAUTHORIZED', message: 'Token no válido' });
-      }
-      const all = PropertiesService.getScriptProperties().getProperties();
-      const list = Object.keys(all)
-        .filter(k => k.indexOf(AGENDA_PREFIX) === 0)
-        .map(k => JSON.parse(all[k]));
-      return jsonOut_({ ok: true, count: list.length, agendas: list });
-    }
-
-    const agendaCode = String(params.agenda || params.agendaCode || '').trim().toUpperCase();
-    if (!agendaCode) {
-      return HtmlService.createHtmlOutput('<h3>Servidor Maestro SAG Operativo</h3><p>Usa <code>?agenda=CODIGO_AGENDA</code></p>');
-    }
-
-    const record = getAgendaRecord_(agendaCode);
-    const view = String(params.view || '').trim().toLowerCase();
-    const html = (view === 'panel') ? buildPanelDesktopHtml_(record) : buildWebAppHtml_(record);
-    return HtmlService.createHtmlOutput(html)
-      .setTitle((record.webConfig && record.webConfig.nombreNegocio) || agendaCode)
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-
-  } catch (err) {
-    return errorResponse_(err.customCode || 'ERROR', String(err.message || err));
-  }
-}
-
-// ============================================================================
-// POST: Sincronización PanelAgendas + Operaciones App Android / WebApp
-// ============================================================================
-function doPost(e) {
-  try {
-    const rawBody = (e && e.postData && e.postData.contents) ? String(e.postData.contents).trim() : '{}';
-    const body = rawBody.startsWith('{') ? JSON.parse(rawBody) : {};
-    const action = String(body.action || '').trim();
-
-    if (action === 'upsertAgenda' || (!action && body.token && (body.agendaCode || body.clientId))) {
-      return handleUpsertAgenda_(body);
-    }
-
-    const p = (body.payload && typeof body.payload === 'object') ? body.payload : body;
-    const agendaCode = String(body.agendaCode || p.agendaCode || body.clientId || p.clientId || '').trim().toUpperCase();
-    const record = getAgendaRecord_(agendaCode);
-
-    if (action === 'getConfig') {
-      return okResponse_('Configuración cargada', { config: record.webConfig || {}, status: record.status });
-    }
-
-    // Verificación instantánea de estado (devuelve SERVICE_SUSPENDED o SERVICE_CANCELLED si no está ACTIVO)
-    checkAgendaAccessOrThrow_(record);
-
-    if (action === 'getAvailability') {
-      return handleGetAvailability_(record, p);
-    }
-    if (action === 'createBooking') {
-      return handleCreateBooking_(record, p, false);
-    }
-    if (action === 'lookupBooking') {
-      return handleLookupBooking_(record, p);
-    }
-    if (action === 'modifyBooking') {
-      return handleModifyBooking_(record, p);
-    }
-    if (action === 'cancelBooking') {
-      return handleCancelBooking_(record, p);
-    }
-    if (action === 'adminListBookings' || action === 'panelListBookings') {
-      assertPanelAdmin_(record, p.adminPassword);
-      return handleAdminListBookings_(record, p);
-    }
-    if (action === 'adminCreateBooking') {
-      assertPanelAdmin_(record, p.adminPassword);
-      return handleCreateBooking_(record, p, true);
-    }
-    if (action === 'adminCancelBooking' || action === 'panelCancelBooking') {
-      assertPanelAdmin_(record, p.adminPassword);
-      return handleAdminCancelBooking_(record, p);
-    }
-
-    return errorResponse_('UNSUPPORTED_ACTION', 'Acción no soportada: ' + action);
-
-  } catch (err) {
-    return errorResponse_(err.customCode || 'ERROR', String(err.message || err));
-  }
-}
-
-function handleUpsertAgenda_(body) {
-  const token = String(body.token || '').trim();
-  if (token !== getAdminToken_()) {
-    return jsonOut_({ ok: false, error: 'UNAUTHORIZED', message: 'Token de administración maestro incorrecto.' });
-  }
-  const code = String(body.agendaCode || body.clientId || '').trim().toUpperCase();
-  if (!code) return jsonOut_({ ok: false, error: 'MISSING_CODE', message: 'Falta agendaCode.' });
-
-  const status = String(body.status || 'ACTIVO').trim().toUpperCase();
-  if (VALID_STATUSES.indexOf(status) === -1) {
-    return jsonOut_({ ok: false, error: 'INVALID_STATUS', message: 'Estado no válido: ' + status });
-  }
-
-  const props = PropertiesService.getScriptProperties();
-  const existingRaw = props.getProperty(AGENDA_PREFIX + code);
-  const existing = existingRaw ? JSON.parse(existingRaw) : {};
-
-  const updated = {
-    agendaCode: code,
-    status: status,
-    calendarId: (body.calendarId !== undefined) ? String(body.calendarId).trim() : (existing.calendarId || ''),
-    hmacSecret: (body.hmacSecret !== undefined) ? String(body.hmacSecret).trim() : (existing.hmacSecret || ''),
-    adminPanelPassword: (body.adminPanelPassword !== undefined) ? String(body.adminPanelPassword).trim() : (existing.adminPanelPassword || 'admin'),
-    maxDurationMinutes: (body.maxDurationMinutes !== undefined) ? Number(body.maxDurationMinutes) : (existing.maxDurationMinutes || 120),
-    minCancelHours: (body.minCancelHours !== undefined) ? Number(body.minCancelHours) : (existing.minCancelHours || 24),
-    cancelOutOfTimePolicy: (body.cancelOutOfTimePolicy !== undefined) ? String(body.cancelOutOfTimePolicy) : (existing.cancelOutOfTimePolicy || 'bloquear'),
-    webConfig: (body.webConfig !== undefined) ? body.webConfig : (existing.webConfig || {}),
-    updatedAt: new Date().toISOString()
-  };
-
-  props.setProperty(AGENDA_PREFIX + code, JSON.stringify(updated));
-  return jsonOut_({ ok: true, agendaCode: code, status: updated.status, updatedAt: updated.updatedAt });
-}
-
-// ============================================================================
-// OPERACIONES EXACTAS DE RESERVASAPP (ANDROID + WEB)
-// ============================================================================
-function handleGetAvailability_(record, p) {
-  const cal = getCalendarForRecord_(record);
-  let start, end;
-  if (p.date) {
-    const dateStr = String(p.date).trim();
-    start = new Date(dateStr + 'T00:00:00');
-    end = new Date(dateStr + 'T23:59:59');
-  } else {
-    start = new Date(p.startIso);
-    end = new Date(p.endIso);
-  }
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return errorResponse_('INVALID_DATE', 'Fecha no válida para consultar disponibilidad.');
-  }
-
-  const intervals = cal.getEvents(start, end).map(ev => ({
-    start: ev.getStartTime().toISOString(),
-    end: ev.getEndTime().toISOString()
-  }));
-
-  return okResponse_('Disponibilidad cargada', { occupiedIntervals: intervals });
-}
-
-function handleCreateBooking_(record, p, isAdmin) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-  try {
-    const cal = getCalendarForRecord_(record);
-    const start = new Date(p.startIso);
-    let end;
-    if (p.endIso) {
-      end = new Date(p.endIso);
-    } else {
-      const defDur = (record.webConfig && record.webConfig.duracionPorDefectoMinutos) || 30;
-      const durationMin = Math.min(Number(p.durationMinutes || defDur), Number(record.maxDurationMinutes || 120));
-      end = new Date(start.getTime() + durationMin * 60000);
-    }
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
-      return errorResponse_('INVALID_RANGE', 'Horario de cita no válido.');
-    }
-
-    if (cal.getEvents(start, end).length > 0) {
-      return errorResponse_('SLOT_TAKEN', 'El horario seleccionado ya está ocupado.');
-    }
-
-    const firstName = String(p.firstName || p.clientName || '').trim();
-    const lastName = String(p.lastName || '').trim();
-    const fullName = (firstName + ' ' + lastName).trim();
-    const phone = String(p.phone || p.clientPhone || '').trim();
-    const reason = String(p.reason || '').trim();
-    const serviceId = String(p.serviceId || 'general').trim();
-    const serviceName = String(p.serviceName || 'Cita').trim();
-
-    if (!firstName || !phone) {
-      return errorResponse_('INVALID_DATA', 'Nombre y teléfono son obligatorios.');
-    }
-
-    // Límite de 1 cita futura activa por teléfono (solo para reservas desde App/Web, no desde Panel Desktop)
-    if (!isAdmin) {
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone.length < 9) {
-        return errorResponse_('INVALID_PHONE', 'Introduce un número de teléfono válido (mínimo 9 dígitos).');
-      }
-      const now = new Date();
-      const oneYearAhead = new Date(now.getTime() + 365 * 24 * 3600000);
-      const futureEvents = cal.getEvents(now, oneYearAhead);
-      const hasActiveBooking = futureEvents.some(ev => {
-        const desc = ev.getDescription() || '';
-        const telLine = desc.split('\n').find(l => l.indexOf('TELEFONO:') === 0) || '';
-        const storedDigits = telLine.replace(/\D/g, '');
-        return storedDigits && (storedDigits === cleanPhone || storedDigits.endsWith(cleanPhone) || cleanPhone.endsWith(storedDigits));
+    async function apiCall(action, payloadObj) {
+      const resp = await fetch(MASTER_GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: action,
+          agendaCode: AGENDA_CODE,
+          payload: payloadObj || {}
+        })
       });
-      if (hasActiveBooking) {
-        return errorResponse_('MAX_BOOKINGS_REACHED', 'Ya tienes una cita activa con este teléfono. Cancélala o modifícala antes de reservar otra.');
+      const json = await resp.json();
+      if (json.resultCode === "SERVICE_SUSPENDED") {
+        updateServiceStatusBanner("SUSPENDIDO", json.resultMessage);
+        showScreen("screenHome");
+        throw new Error(json.resultMessage);
       }
+      if (json.resultCode === "SERVICE_CANCELLED") {
+        updateServiceStatusBanner("BAJA", json.resultMessage);
+        showScreen("screenHome");
+        throw new Error(json.resultMessage);
+      }
+      return json;
     }
 
-    const reservationCode = generateShortCode_(8);
-    const title = serviceName + ' - ' + fullName + ' [' + reservationCode + ']';
-    const desc = [
-      'CODIGO: ' + reservationCode,
-      'AGENDA: ' + record.agendaCode,
-      'TELEFONO: ' + phone,
-      'NOMBRE: ' + firstName,
-      'APELLIDOS: ' + lastName,
-      'SERVICIO_ID: ' + serviceId,
-      'SERVICIO: ' + serviceName,
-      'MOTIVO: ' + (reason || '-'),
-      'ORIGEN: ' + (isAdmin ? 'Panel Desktop' : 'App / Web')
-    ].join('\n');
-
-    const ev = cal.createEvent(title, start, end, { description: desc });
-
-    return okResponse_('Reserva confirmada', {
-      eventId: ev.getId(),
-      reservationCode: reservationCode,
-      startIso: start.toISOString(),
-      endIso: end.toISOString()
-    });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function findEventByPhoneAndCode_(cal, phoneRaw, codeRaw) {
-  const cleanPhone = String(phoneRaw || '').replace(/\D/g, '');
-  const cleanCode = String(codeRaw || '').trim().toUpperCase();
-  if (!cleanPhone || !cleanCode) return null;
-
-  const from = new Date(Date.now() - 24 * 3600000);
-  const to = new Date(Date.now() + 365 * 24 * 3600000);
-  const events = cal.getEvents(from, to);
-
-  for (let i = 0; i < events.length; i++) {
-    const ev = events[i];
-    const desc = ev.getDescription() || '';
-    const title = ev.getTitle() || '';
-    const codeMatch = desc.indexOf('CODIGO: ' + cleanCode) !== -1 || title.indexOf('[' + cleanCode + ']') !== -1;
-    if (!codeMatch) continue;
-
-    const telLine = desc.split('\n').find(l => l.indexOf('TELEFONO:') === 0) || '';
-    const storedDigits = telLine.replace(/\D/g, '');
-    if (storedDigits && (storedDigits === cleanPhone || storedDigits.endsWith(cleanPhone) || cleanPhone.endsWith(storedDigits))) {
-      return ev;
-    }
-  }
-  return null;
-}
-
-function parseEventMeta_(ev) {
-  const map = {};
-  (ev.getDescription() || '').split('\n').forEach(line => {
-    const idx = line.indexOf(':');
-    if (idx > 0) {
-      map[line.substring(0, idx).trim()] = line.substring(idx + 1).trim();
-    }
-  });
-  return map;
-}
-
-function handleLookupBooking_(record, p) {
-  const cal = getCalendarForRecord_(record);
-  const ev = findEventByPhoneAndCode_(cal, p.phone, p.reservationCode);
-  if (!ev) {
-    return errorResponse_('NOT_FOUND', 'No se encontró ninguna reserva activa con ese teléfono y código.');
-  }
-  const meta = parseEventMeta_(ev);
-  return okResponse_('Reserva localizada', {
-    eventId: ev.getId(),
-    reservationCode: meta['CODIGO'] || String(p.reservationCode).trim().toUpperCase(),
-    startIso: ev.getStartTime().toISOString(),
-    endIso: ev.getEndTime().toISOString(),
-    serviceId: meta['SERVICIO_ID'] || 'general',
-    serviceName: meta['SERVICIO'] || 'Servicio',
-    firstName: meta['NOMBRE'] || '',
-    lastName: meta['APELLIDOS'] || '',
-    reason: meta['MOTIVO'] || ''
-  });
-}
-
-function handleModifyBooking_(record, p) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(15000);
-  try {
-    const cal = getCalendarForRecord_(record);
-    const ev = findEventByPhoneAndCode_(cal, p.phone, p.reservationCode);
-    if (!ev) {
-      return errorResponse_('NOT_FOUND', 'No se encontró la reserva para modificar.');
-    }
-
-    const minHours = Number(record.minCancelHours || 24);
-    const diffHours = (ev.getStartTime().getTime() - Date.now()) / 3600000;
-    if (diffHours < minHours && record.cancelOutOfTimePolicy === 'bloquear') {
-      return errorResponse_('OUT_OF_TIME', 'No se puede modificar con menos de ' + minHours + 'h de antelación.');
-    }
-
-    const newStart = new Date(p.newStartIso);
-    const newEnd = new Date(p.newEndIso);
-    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime()) || newEnd <= newStart) {
-      return errorResponse_('INVALID_RANGE', 'Nuevo horario no válido.');
-    }
-
-    const conflicts = cal.getEvents(newStart, newEnd).filter(other => other.getId() !== ev.getId());
-    if (conflicts.length > 0) {
-      return errorResponse_('SLOT_TAKEN', 'El nuevo horario seleccionado ya está ocupado.');
-    }
-
-    const meta = parseEventMeta_(ev);
-    const serviceId = String(p.serviceId || meta['SERVICIO_ID'] || 'general').trim();
-    const serviceName = String(p.serviceName || meta['SERVICIO'] || 'Cita').trim();
-    const firstName = meta['NOMBRE'] || '';
-    const lastName = meta['APELLIDOS'] || '';
-    const fullName = (firstName + ' ' + lastName).trim();
-    const code = meta['CODIGO'] || String(p.reservationCode).trim().toUpperCase();
-
-    ev.setTime(newStart, newEnd);
-    ev.setTitle(serviceName + ' - ' + fullName + ' [' + code + ']');
-    ev.setDescription([
-      'CODIGO: ' + code,
-      'AGENDA: ' + record.agendaCode,
-      'TELEFONO: ' + (meta['TELEFONO'] || String(p.phone || '').trim()),
-      'NOMBRE: ' + firstName,
-      'APELLIDOS: ' + lastName,
-      'SERVICIO_ID: ' + serviceId,
-      'SERVICIO: ' + serviceName,
-      'MOTIVO: ' + (meta['MOTIVO'] || '-'),
-      'ORIGEN: Modificada desde App'
-    ].join('\n'));
-
-    return okResponse_('Cita modificada correctamente', {
-      eventId: ev.getId(),
-      reservationCode: code,
-      startIso: newStart.toISOString(),
-      endIso: newEnd.toISOString()
-    });
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function handleCancelBooking_(record, p) {
-  const cal = getCalendarForRecord_(record);
-  const ev = findEventByPhoneAndCode_(cal, p.phone, p.reservationCode);
-  if (!ev) {
-    return errorResponse_('NOT_FOUND', 'No se encontró la reserva indicada.');
-  }
-
-  const minHours = Number(record.minCancelHours || 24);
-  const diffHours = (ev.getStartTime().getTime() - Date.now()) / 3600000;
-  if (diffHours < minHours && record.cancelOutOfTimePolicy === 'bloquear') {
-    return errorResponse_('OUT_OF_TIME', 'No se puede cancelar con menos de ' + minHours + 'h de antelación.');
-  }
-
-  ev.deleteEvent();
-  return okResponse_('Cita cancelada correctamente', {});
-}
-
-function handleAdminListBookings_(record, p) {
-  const cal = getCalendarForRecord_(record);
-  let start, end;
-  if (p.date) {
-    const dateStr = String(p.date).trim();
-    start = new Date(dateStr + 'T00:00:00');
-    end = new Date(dateStr + 'T23:59:59');
-  } else {
-    start = new Date(p.startIso);
-    end = new Date(p.endIso);
-  }
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return errorResponse_('INVALID_DATE', 'Fecha no válida para listar citas.');
-  }
-
-  const events = cal.getEvents(start, end).map(ev => {
-    const meta = parseEventMeta_(ev);
-    return {
-      bookingId: ev.getId(),
-      eventId: ev.getId(),
-      title: ev.getTitle(),
-      description: ev.getDescription(),
-      startIso: ev.getStartTime().toISOString(),
-      endIso: ev.getEndTime().toISOString(),
-      firstName: meta['NOMBRE'] || ev.getTitle(),
-      lastName: meta['APELLIDOS'] || '',
-      phone: meta['TELEFONO'] || '',
-      serviceName: meta['SERVICIO'] || ev.getTitle(),
-      reason: (meta['MOTIVO'] && meta['MOTIVO'] !== '-') ? meta['MOTIVO'] : '',
-      reservationCode: meta['CODIGO'] || ''
-    };
-  });
-  return okResponse_('Citas listadas', { bookings: events });
-}
-
-function handleAdminCancelBooking_(record, p) {
-  const cal = getCalendarForRecord_(record);
-  const id = String(p.eventId || p.bookingId || '').trim();
-  const ev = cal.getEventById(id);
-  if (!ev) return errorResponse_('NOT_FOUND', 'No se encontró la cita.');
-  ev.deleteEvent();
-  return okResponse_('Cita cancelada', {});
-}
-
-function assertPanelAdmin_(record, pass) {
-  if (String(pass || '') !== String(record.adminPanelPassword || 'admin')) {
-    throw new Error('Contraseña de administración incorrecta.');
-  }
-}
-
-function generateShortCode_(len) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  for (let i = 0; i < len; i++) {
-    out += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return out;
-}
-
-function okResponse_(msg, dataObj) {
-  return jsonOut_({
-    ok: true,
-    resultCode: 'OK',
-    resultMessage: msg,
-    data: dataObj || {}
-  });
-}
-
-function errorResponse_(code, msg) {
-  return jsonOut_({
-    ok: false,
-    resultCode: code,
-    resultMessage: msg,
-    data: null
-  });
-}
-
-function jsonOut_(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
-}
-
-// ============================================================================
-// WEBAPP Y PANEL DESKTOP POR AGENDA (?agenda=CODIGO y ?agenda=CODIGO&view=panel)
-// ============================================================================
-function buildWebAppHtml_(record) {
-  const cfgJson = JSON.stringify(record.webConfig || {});
-  const codeJson = JSON.stringify(record.agendaCode);
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Reserva de Cita</title><style>
-  :root{--primary:#1565C0}body{font-family:system-ui,sans-serif;background:#f3f5f9;margin:0;padding:16px;color:#1f2937}
-  .card{max-width:520px;margin:0 auto;background:#fff;border-radius:14px;padding:20px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
-  h1{font-size:1.25rem;margin:0;color:var(--primary)}label{display:block;font-size:.85rem;font-weight:600;margin-top:12px;margin-bottom:4px}
-  input,select,button{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #d1d5db;font-size:.95rem}
-  button{background:var(--primary);color:#fff;font-weight:700;border:none;margin-top:16px;cursor:pointer}
-  .slots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
-  .slot{padding:8px;text-align:center;border:1px solid var(--primary);border-radius:8px;cursor:pointer;font-weight:600;color:var(--primary)}
-  .slot.active{background:var(--primary);color:#fff}.msg{margin-top:14px;padding:10px;border-radius:8px;display:none}
-  .msg.ok{display:block;background:#dcfce7;color:#166534}.msg.err{display:block;background:#fee2e2;color:#991b1b}
-  </style></head><body><div class="card"><h1 id="bizName">Reserva de Cita</h1><small id="bizPhone"></small>
-  <label>Servicio</label><select id="serviceSelect"></select>
-  <label>Fecha</label><input type="date" id="dateInput"/>
-  <label>Horarios disponibles</label><div id="slotsGrid" class="slots"></div>
-  <label>Nombre *</label><input type="text" id="firstName"/>
-  <label>Apellidos *</label><input type="text" id="lastName"/>
-  <label>Teléfono *</label><input type="tel" id="clientPhone"/>
-  <label>Motivo</label><select id="reasonSelect"></select>
-  <button onclick="submitBooking()">Confirmar Reserva</button><div id="statusMsg" class="msg"></div></div>
-  <script>
-  const CFG=${cfgJson}, AGENDA=${codeJson}, DAYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-  let selectedSlotIso=''; document.documentElement.style.setProperty('--primary',CFG.colorPrimario||'#1565C0');
-  document.getElementById('bizName').textContent=CFG.nombreNegocio||'Reserva de Cita';
-  if(CFG.telefonoContacto)document.getElementById('bizPhone').textContent='Tel: '+CFG.telefonoContacto;
-  const srvSel=document.getElementById('serviceSelect');
-  (CFG.servicios||[]).forEach(s=>{const o=document.createElement('option');o.value=JSON.stringify(s);o.textContent=s.nombre+' ('+s.duracionMinutos+' min)';srvSel.appendChild(o);});
-  const rSel=document.getElementById('reasonSelect');
-  (CFG.categoriasMotivo||['Consulta']).forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;rSel.appendChild(o);});
-  const dIn=document.getElementById('dateInput'); dIn.value=new Date().toISOString().slice(0,10);
-  dIn.onchange=loadSlots; srvSel.onchange=loadSlots;
-  async function loadSlots(){
-    selectedSlotIso=''; const g=document.getElementById('slotsGrid'); g.innerHTML='Cargando...';
-    const ds=dIn.value; if(!ds)return; const ranges=(CFG.horariosSemanales||{})[DAYS[new Date(ds+'T00:00:00').getDay()]]||[];
-    if(!ranges.length){g.innerHTML='<small>Cerrado este día.</small>';return;}
-    const res=await fetch(location.href.split('?')[0],{method:'POST',body:JSON.stringify({action:'getAvailability',agendaCode:AGENDA,payload:{date:ds}})}).then(r=>r.json());
-    if(res.resultCode!=='OK'){g.innerHTML='<small style="color:#b91c1c">'+(res.resultMessage||'Error')+'</small>';return;}
-    const busy=((res.data&&res.data.occupiedIntervals)||[]).map(b=>({s:new Date(b.start).getTime(),e:new Date(b.end).getTime()}));
-    const srv=JSON.parse(srvSel.value||'{"duracionMinutos":30}'), dur=(srv.duracionMinutos||30)*60000, step=(CFG.intervaloRejillaMinutos||15)*60000;
-    g.innerHTML=''; ranges.forEach(r=>{let cur=new Date(ds+'T'+r.inicio+':00').getTime(),lim=new Date(ds+'T'+r.fin+':00').getTime();
-    while(cur+dur<=lim){const end=cur+dur;if(!busy.some(b=>cur<b.e&&end>b.s)&&cur>Date.now()){const b=document.createElement('div');b.className='slot';const dt=new Date(cur);b.textContent=dt.toTimeString().slice(0,5);b.onclick=()=>{document.querySelectorAll('.slot').forEach(x=>x.classList.remove('active'));b.classList.add('active');selectedSlotIso=dt.toISOString();};g.appendChild(b);}cur+=step;}});
-    if(!g.children.length)g.innerHTML='<small>No quedan huecos libres.</small>';
-  }
-  async function submitBooking(){
-    const m=document.getElementById('statusMsg'); m.className='msg'; if(!selectedSlotIso){m.textContent='Selecciona una hora.';m.className='msg err';return;}
-    const srv=JSON.parse(srvSel.value||'{"id":"srv_1","nombre":"Cita","duracionMinutos":30}');
-    const endIso=new Date(new Date(selectedSlotIso).getTime()+(srv.duracionMinutos||30)*60000).toISOString();
-    const res=await fetch(location.href.split('?')[0],{method:'POST',body:JSON.stringify({action:'createBooking',agendaCode:AGENDA,payload:{startIso:selectedSlotIso,endIso:endIso,serviceId:srv.id,serviceName:srv.nombre,firstName:document.getElementById('firstName').value,lastName:document.getElementById('lastName').value,phone:document.getElementById('clientPhone').value,reason:rSel.value}})}).then(r=>r.json());
-    m.textContent=res.resultCode==='OK'?'Reserva confirmada. Código: '+(res.data&&res.data.reservationCode):(res.resultMessage||'Error'); m.className='msg '+(res.resultCode==='OK'?'ok':'err'); if(res.resultCode==='OK')loadSlots();
-  }
-  loadSlots();
-  </script></body></html>`;
-}
-
-function buildPanelDesktopHtml_(record) {
-  const cfgJson = JSON.stringify(record.webConfig || {});
-  const codeJson = JSON.stringify(record.agendaCode);
-  return `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Panel Agenda</title><style>
-  body{font-family:system-ui,-apple-system,sans-serif;background:#eef2f6;margin:0;padding:20px;color:#1e293b}
-  .box{max-width:1040px;margin:0 auto;background:#fff;border-radius:14px;padding:22px;box-shadow:0 4px 20px rgba(0,0,0,.06)}
-  h2{margin-top:0;margin-bottom:14px;color:#0f172a}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-  input,button{padding:9px 13px;border-radius:8px;border:1px solid #cbd5e1;font-size:.92rem}
-  button{background:#1565C0;color:#fff;border:none;font-weight:600;cursor:pointer;transition:opacity .15s}
-  button:hover{opacity:.9}
-  button.btn-tomorrow{background:#0284c7}
-  button.btn-wa-batch{background:#16a34a}
-  button.btn-wa{background:#22c55e;padding:6px 11px;font-size:.84rem}
-  button.btn-del{background:#dc2626;padding:6px 11px;font-size:.84rem}
-  .actions-cell{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .badge-sent{display:inline-block;background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:.75rem;font-weight:700;padding:2px 7px;border-radius:999px}
-  .badge-pending{display:inline-block;background:#fef9c3;color:#854d0e;border:1px solid #fde047;font-size:.75rem;font-weight:700;padding:2px 7px;border-radius:999px}
-  .status-bar{font-size:.88rem;color:#475569;margin-bottom:10px;font-weight:500}
-  table{width:100%;border-collapse:collapse}
-  th,td{padding:10px 8px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:.92rem}
-  th{background:#f8fafc;color:#475569;font-weight:700}
-  </style></head><body><div class="box">
-  <h2 id="t">Panel Agenda</h2>
-  <div class="row">
-    <input type="password" id="pass" placeholder="Clave Panel" />
-    <input type="date" id="fDate" />
-    <button onclick="loadB()">Cargar Citas</button>
-    <button class="btn-tomorrow" onclick="loadTomorrow()">Ver Mañana</button>
-    <button class="btn-wa-batch" onclick="sendBatchTomorrowWa()">Avisar Pendientes de Mañana (WhatsApp)</button>
-  </div>
-  <div id="infoBar" class="status-bar">Introduce la clave del panel y pulsa "Cargar Citas" o "Ver Mañana".</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Hora</th>
-        <th>Cliente</th>
-        <th>Teléfono</th>
-        <th>Servicio / Detalle</th>
-        <th>Aviso WA</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="tb"></tbody>
-  </table>
-  </div>
-  <script>
-  const CFG = ${cfgJson}, AGENDA = ${codeJson};
-  const BIZ_NAME = CFG.nombreNegocio || ('Agenda ' + AGENDA);
-  document.getElementById('t').textContent = 'Panel · ' + BIZ_NAME + ' (' + AGENDA + ')';
-
-  function toYMD(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return y + '-' + m + '-' + day;
-  }
-
-  function getTomorrowYMD() {
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    return toYMD(t);
-  }
-
-  document.getElementById('fDate').value = toYMD(new Date());
-
-  let currentBookings = [];
-
-  function normalizeWaPhone(raw) {
-    let digits = String(raw || '').replace(/\\D/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('00')) digits = digits.slice(2);
-    if (digits.length === 9 && /^[6789]/.test(digits)) {
-      return '34' + digits;
-    }
-    return digits;
-  }
-
-  function waStorageKey(b) {
-    return 'wa_notified_' + AGENDA + '_' + (b.bookingId || '') + '_' + (b.startIso || '');
-  }
-
-  function isWaNotified(b) {
-    try { return localStorage.getItem(waStorageKey(b)) === '1'; } catch (e) { return false; }
-  }
-
-  function markWaNotified(b) {
-    try { localStorage.setItem(waStorageKey(b), '1'); } catch (e) {}
-  }
-
-  function buildWaUrl(b) {
-    const waPhone = normalizeWaPhone(b.phone);
-    if (!waPhone) return '';
-    const dtStart = new Date(b.startIso);
-    const fechaEs = dtStart.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    const horaEs = dtStart.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-    const nombre = (b.firstName || '').trim() || 'cliente';
-    const servicio = (b.serviceName || 'tu cita').trim();
-    const cod = (b.reservationCode || '').trim();
-
-    const lines = [
-      'Hola ' + nombre + ', te recordamos tu cita en *' + BIZ_NAME + '*:',
-      '📅 *Fecha:* ' + fechaEs,
-      '⏰ *Hora:* ' + horaEs,
-      '📋 *Servicio:* ' + servicio
-    ];
-    if (cod) lines.push('🔑 *Código:* ' + cod);
-    lines.push('¡Te esperamos!');
-
-    return 'https://wa.me/' + waPhone + '?text=' + encodeURIComponent(lines.join('\\n'));
-  }
-
-  function openSingleWa(idx) {
-    const b = currentBookings[idx];
-    if (!b) return;
-    const url = buildWaUrl(b);
-    if (!url) {
-      alert('Esta cita no tiene un teléfono válido registrado.');
-      return;
-    }
-    markWaNotified(b);
-    renderBookingsTable();
-    window.open(url, '_blank', 'noopener');
-  }
-
-  function renderBookingsTable() {
-    const tb = document.getElementById('tb');
-    tb.innerHTML = '';
-    if (!currentBookings.length) {
-      tb.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:18px;">No hay citas registradas para esta fecha.</td></tr>';
-      return;
-    }
-
-    currentBookings.forEach((b, idx) => {
-      const tr = document.createElement('tr');
-      const hIni = new Date(b.startIso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      const hFin = new Date(b.endIso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      const clienteFull = ((b.firstName || '') + ' ' + (b.lastName || '')).trim() || b.title;
-      const waPhone = normalizeWaPhone(b.phone);
-      const notified = isWaNotified(b);
-
-      const badgeHtml = !waPhone
-        ? '<span style="color:#94a3b8;font-size:.8rem;">Sin teléfono</span>'
-        : (notified
-            ? '<span class="badge-sent">✓ Avisado</span>'
-            : '<span class="badge-pending">Pendiente</span>');
-
-      const waBtnHtml = waPhone
-        ? '<button class="btn-wa" onclick="openSingleWa(' + idx + ')">WhatsApp</button>'
-        : '';
-
-      tr.innerHTML =
-        '<td><strong>' + hIni + '</strong> - ' + hFin + '</td>' +
-        '<td>' + escapeHtml(clienteFull) + '</td>' +
-        '<td>' + escapeHtml(b.phone || '-') + '</td>' +
-        '<td>' + escapeHtml(b.serviceName || b.title) + (b.reason ? '<br><small style="color:#64748b">' + escapeHtml(b.reason) + '</small>' : '') + '</td>' +
-        '<td>' + badgeHtml + '</td>' +
-        '<td class="actions-cell">' + waBtnHtml + '<button class="btn-del" onclick="delB(\\'' + b.bookingId + '\\')">Cancelar</button></td>';
-      tb.appendChild(tr);
-    });
-  }
-
-  function escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  async function fetchBookingsForDate(ds) {
-    const pass = document.getElementById('pass').value;
-    if (!pass) {
-      alert('Introduce la clave del panel.');
-      return null;
-    }
-    document.getElementById('infoBar').textContent = 'Cargando citas del ' + ds + '...';
-    const res = await fetch(location.href.split('?')[0], {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'adminListBookings',
-        agendaCode: AGENDA,
-        payload: {
-          adminPassword: pass,
-          startIso: new Date(ds + 'T00:00:00').toISOString(),
-          endIso: new Date(ds + 'T23:59:59').toISOString()
+    async function bootstrap() {
+      if (!AGENDA_CODE) {
+        document.getElementById("globalLoading").textContent = "Falta el código de agenda en la URL (?agenda=CODIGO).";
+        return;
+      }
+      try {
+        const res = await apiCall("getConfig", {});
+        if (res.resultCode !== "OK" || !res.data || !res.data.config) {
+          document.getElementById("globalLoading").textContent = res.resultMessage || "Agenda no encontrada.";
+          return;
         }
-      })
-    }).then(r => r.json());
+        CONFIG = res.data.config;
+        applyBranding(CONFIG);
+        updateServiceStatusBanner(res.data.status || "ACTIVO");
+        selectedService = (CONFIG.servicios && CONFIG.servicios[0]) || { id: "general", nombre: "Cita Estándar", duracionMinutos: 30 };
 
-    if (res.resultCode !== 'OK') {
-      document.getElementById('infoBar').textContent = 'Error: ' + res.resultMessage;
-      alert(res.resultMessage);
-      return null;
+        document.getElementById("globalLoading").style.display = "none";
+        showScreen("screenHome");
+        setupInstallCard(CONFIG.nombreNegocio || AGENDA_CODE);
+      } catch (err) {
+        document.getElementById("globalLoading").textContent = "Error conectando con la agenda: " + err.message;
+      }
     }
 
-    currentBookings = ((res.data && res.data.bookings) || []).sort((a, b) => new Date(a.startIso) - new Date(b.startIso));
-    renderBookingsTable();
-    const pendientes = currentBookings.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b)).length;
-    document.getElementById('infoBar').textContent =
-      'Fecha ' + ds + ': ' + currentBookings.length + ' cita(s) | Pendientes de aviso WhatsApp: ' + pendientes;
-    return currentBookings;
-  }
-
-  async function loadB() {
-    const ds = document.getElementById('fDate').value;
-    if (!ds) return;
-    await fetchBookingsForDate(ds);
-  }
-
-  async function loadTomorrow() {
-    const tomorrow = getTomorrowYMD();
-    document.getElementById('fDate').value = tomorrow;
-    await fetchBookingsForDate(tomorrow);
-  }
-
-  async function sendBatchTomorrowWa() {
-    const tomorrow = getTomorrowYMD();
-    document.getElementById('fDate').value = tomorrow;
-    const list = await fetchBookingsForDate(tomorrow);
-    if (!list) return;
-
-    const pendientes = list.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b));
-    if (!pendientes.length) {
-      alert('No quedan citas pendientes de avisar por WhatsApp para mañana (' + tomorrow + ').');
-      return;
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+      window.scrollTo(0, 0);
     }
 
-    if (!confirm('Hay ' + pendientes.length + ' cita(s) pendiente(s) de avisar para mañana (' + tomorrow + ').\\n\\nSe abrirá WhatsApp para cada cliente uno por uno y se marcarán como avisados. ¿Empezar?')) {
-      return;
+    function formatDateYMD(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
     }
 
-    for (let i = 0; i < pendientes.length; i++) {
-      const b = pendientes[i];
-      const url = buildWaUrl(b);
-      const hora = new Date(b.startIso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-      const nombre = ((b.firstName || '') + ' ' + (b.lastName || '')).trim() || b.phone;
+    function formatDateLongEs(d) {
+      return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    }
 
-      if (i > 0) {
-        const seguir = confirm('Siguiente aviso (' + (i + 1) + ' de ' + pendientes.length + '):\\n' + hora + ' - ' + nombre + ' (' + b.phone + ')\\n\\nPulsa Aceptar para abrir su WhatsApp o Cancelar para pausar.');
-        if (!seguir) break;
+    function formatTimeHM(d) {
+      return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function openSelectSlot() {
+      document.getElementById("homeInfoMsg").style.display = "none";
+      renderServices();
+      showScreen("screenSelectSlot");
+      loadSlotsForCurrentDate();
+    }
+
+    function renderServices() {
+      const cont = document.getElementById("servicesContainer");
+      cont.innerHTML = "";
+      (CONFIG.servicios || []).forEach(srv => {
+        const btn = document.createElement("button");
+        btn.className = "service-chip" + (selectedService && selectedService.id === srv.id ? " selected" : "");
+        const pricePart = srv.precioTexto ? ` · ${srv.precioTexto}` : "";
+        btn.textContent = `${srv.nombre} (${srv.duracionMinutos} min${pricePart})`;
+        btn.onclick = () => {
+          selectedService = srv;
+          renderServices();
+          loadSlotsForCurrentDate();
+        };
+        cont.appendChild(btn);
+      });
+    }
+
+    function changeDay(delta) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const next = new Date(selectedDate);
+      next.setDate(next.getDate() + delta);
+      if (next < today) return;
+      selectedDate = next;
+      loadSlotsForCurrentDate();
+    }
+
+    async function loadSlotsForCurrentDate() {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      document.getElementById("btnPrevDay").disabled = selectedDate <= today;
+      document.getElementById("selectedDateLabel").textContent = formatDateLongEs(selectedDate);
+      document.getElementById("slotsError").style.display = "none";
+      document.getElementById("closedDayBox").style.display = "none";
+      const grid = document.getElementById("slotsContainer");
+      grid.innerHTML = "";
+
+      const dayKey = DAYS_EN[selectedDate.getDay()];
+      const ranges = (CONFIG.horariosSemanales || {})[dayKey] || [];
+      if (!ranges.length) {
+        document.getElementById("closedDayBox").style.display = "block";
+        return;
       }
 
-      markWaNotified(b);
-      renderBookingsTable();
-      window.open(url, '_blank', 'noopener');
+      document.getElementById("slotsLoading").style.display = "block";
+      try {
+        const ymd = formatDateYMD(selectedDate);
+        const res = await apiCall("getAvailability", { date: ymd });
+        document.getElementById("slotsLoading").style.display = "none";
+        if (res.resultCode !== "OK") {
+          document.getElementById("slotsError").textContent = res.resultMessage;
+          document.getElementById("slotsError").style.display = "block";
+          return;
+        }
+        const occupied = ((res.data && res.data.occupiedIntervals) || []).map(iv => ({
+          start: new Date(iv.start).getTime(),
+          end: new Date(iv.end).getTime()
+        }));
+
+        renderSlotGrid(grid, selectedDate, ranges, occupied, (startDt, endDt) => {
+          selectedSlotStart = startDt;
+          selectedSlotEnd = endDt;
+          openBookingForm();
+        });
+      } catch (e) {
+        document.getElementById("slotsLoading").style.display = "none";
+        document.getElementById("slotsError").textContent = e.message;
+        document.getElementById("slotsError").style.display = "block";
+      }
     }
 
-    const restantes = currentBookings.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b)).length;
-    document.getElementById('infoBar').textContent =
-      'Fecha ' + tomorrow + ': ' + currentBookings.length + ' cita(s) | Pendientes de aviso WhatsApp: ' + restantes;
-  }
+    function renderSlotGrid(container, dateObj, ranges, occupied, onSelectFree) {
+      container.innerHTML = "";
+      const stepMin = Math.max(5, Number(CONFIG.intervaloRejillaMinutos || 15));
+      const serviceDur = Number((selectedService && selectedService.duracionMinutos) || CONFIG.duracionPorDefectoMinutos || 30);
+      const nowMs = Date.now();
+      const ymd = formatDateYMD(dateObj);
 
-  async function delB(id) {
-    if (!confirm('¿Cancelar esta cita definitivamente?')) return;
-    const pass = document.getElementById('pass').value;
-    const r = await fetch(location.href.split('?')[0], {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'adminCancelBooking',
-        agendaCode: AGENDA,
-        payload: { adminPassword: pass, bookingId: id }
-      })
-    }).then(x => x.json());
-    if (r.resultCode === 'OK') loadB();
-    else alert(r.resultMessage);
-  }
-  </script></body></html>`;
-}
+      const parsedRanges = ranges.map(r => ({
+        s: new Date(`${ymd}T${r.inicio}:00`).getTime(),
+        e: new Date(`${ymd}T${r.fin}:00`).getTime()
+      }));
+      const firstStart = Math.min(...parsedRanges.map(r => r.s));
+      const lastEnd = Math.max(...parsedRanges.map(r => r.e));
+
+      let cursor = firstStart;
+      while (cursor < lastEnd) {
+        const nextCursor = cursor + stepMin * 60000;
+        if (nextCursor > lastEnd) break;
+
+        const containingRange = parsedRanges.find(r => cursor >= r.s && nextCursor <= r.e);
+        const isPast = cursor <= nowMs;
+        const isBusy = occupied.some(o => cursor < o.end && nextCursor > o.start);
+
+        let state = "free";
+        if (!containingRange || isPast) state = "closed";
+        else if (isBusy) state = "busy";
+
+        let canFit = false;
+        if (state === "free" && containingRange) {
+          const serviceEnd = cursor + serviceDur * 60000;
+          const withinClose = serviceEnd <= containingRange.e;
+          const collides = occupied.some(o => cursor < o.end && serviceEnd > o.start);
+          canFit = withinClose && !collides;
+          if (!canFit) state = "closed";
+        }
+
+        const btn = document.createElement("button");
+        btn.className = "slot-btn " + state;
+        const dtStart = new Date(cursor);
+        btn.textContent = formatTimeHM(dtStart);
+
+        if (state === "free" && canFit) {
+          const dtEnd = new Date(cursor + serviceDur * 60000);
+          btn.onclick = () => onSelectFree(dtStart, dtEnd, btn);
+        } else {
+          btn.disabled = true;
+        }
+        container.appendChild(btn);
+        cursor = nextCursor;
+      }
+    }
+
+    function openBookingForm() {
+      document.getElementById("formError").style.display = "none";
+      document.getElementById("summarySlotCard").innerHTML = `
+        <div style="font-weight:700; color:var(--primary);">${selectedService.nombre}</div>
+        <div style="font-size:0.95rem;">${formatDateLongEs(selectedDate)}</div>
+        <div style="font-size:1.05rem; font-weight:700;">De ${formatTimeHM(selectedSlotStart)} a ${formatTimeHM(selectedSlotEnd)}</div>
+      `;
+
+      const isSanitario = CONFIG.tipoNegocio === "sanitario";
+      const cats = CONFIG.categoriasMotivo || [];
+      const sel = document.getElementById("selectReason");
+      const txt = document.getElementById("inputReason");
+      const lbl = document.getElementById("reasonLabel");
+      lbl.textContent = (isSanitario || CONFIG.motivoObligatorio) ? "Motivo de la cita *" : "Motivo de la cita (opcional)";
+
+      if (isSanitario && cats.length > 0) {
+        sel.innerHTML = "";
+        cats.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c; opt.textContent = c;
+          sel.appendChild(opt);
+        });
+        sel.style.display = "block";
+        txt.style.display = "none";
+      } else {
+        sel.style.display = "none";
+        txt.style.display = "block";
+      }
+
+      showScreen("screenBookingForm");
+    }
+
+    async function submitBooking() {
+      const firstName = document.getElementById("inputFirstName").value.trim();
+      const lastName = document.getElementById("inputLastName").value.trim();
+      const phone = document.getElementById("inputPhone").value.trim();
+      const isSanitario = CONFIG.tipoNegocio === "sanitario" && (CONFIG.categoriasMotivo || []).length > 0;
+      const reason = isSanitario
+        ? document.getElementById("selectReason").value
+        : document.getElementById("inputReason").value.trim();
+
+      const errBox = document.getElementById("formError");
+      errBox.style.display = "none";
+
+      if (!firstName || !lastName || !phone) {
+        errBox.textContent = "Nombre, apellidos y teléfono son obligatorios.";
+        errBox.style.display = "block";
+        return;
+      }
+      if ((CONFIG.tipoNegocio === "sanitario" || CONFIG.motivoObligatorio) && !reason) {
+        errBox.textContent = "Debes indicar el motivo de la cita.";
+        errBox.style.display = "block";
+        return;
+      }
+
+      const btn = document.getElementById("btnSubmitBooking");
+      btn.disabled = true;
+      btn.textContent = "Confirmando reserva...";
+
+      try {
+        const res = await apiCall("createBooking", {
+          startIso: selectedSlotStart.toISOString(),
+          endIso: selectedSlotEnd.toISOString(),
+          serviceId: selectedService.id,
+          serviceName: selectedService.nombre,
+          firstName,
+          lastName,
+          phone,
+          reason
+        });
+        btn.disabled = false;
+        btn.textContent = "Confirmar reserva";
+
+        if (res.resultCode !== "OK") {
+          errBox.textContent = res.resultMessage;
+          errBox.style.display = "block";
+          return;
+        }
+
+        const code = res.data.reservationCode;
+        lastConfirmedBooking = {
+          code: code,
+          serviceName: selectedService.nombre,
+          start: new Date(selectedSlotStart),
+          end: new Date(selectedSlotEnd),
+          clientName: `${firstName} ${lastName}`.trim()
+        };
+
+        document.getElementById("confirmedCode").textContent = code;
+        document.getElementById("confirmedDetails").innerHTML = `
+          <strong>Servicio:</strong> ${selectedService.nombre}<br/>
+          <strong>Fecha:</strong> ${formatDateLongEs(selectedDate)}<br/>
+          <strong>Horario:</strong> ${formatTimeHM(selectedSlotStart)} - ${formatTimeHM(selectedSlotEnd)}<br/>
+          <strong>Paciente/Cliente:</strong> ${firstName} ${lastName}
+        `;
+        showScreen("screenConfirmed");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Confirmar reserva";
+        errBox.textContent = e.message;
+        errBox.style.display = "block";
+      }
+    }
+
+    function copyConfirmedCode() {
+      const code = document.getElementById("confirmedCode").textContent;
+      navigator.clipboard.writeText(code);
+      alert("Código copiado: " + code);
+    }
+
+    // =========================================================================
+    // RECORDATORIOS EN CALENDARIO (.ICS CON ALARMAS + GOOGLE CALENDAR)
+    // =========================================================================
+    function toIcsUtcString(dt) {
+      return dt.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    }
+
+    function escapeIcsText(str) {
+      return String(str || "")
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\r?\n/g, "\\n");
+    }
+
+    function downloadIcsReminder() {
+      if (!lastConfirmedBooking) return;
+      const bizName = (CONFIG && CONFIG.nombreNegocio) || ("Agenda " + AGENDA_CODE);
+      const bizPhone = (CONFIG && CONFIG.telefonoContacto) ? `Tel: ${CONFIG.telefonoContacto}` : "";
+      const summary = `Cita: ${lastConfirmedBooking.serviceName} - ${bizName}`;
+      const description = [
+        `Reserva confirmada en ${bizName}`,
+        `Servicio: ${lastConfirmedBooking.serviceName}`,
+        `Código de reserva: ${lastConfirmedBooking.code}`,
+        bizPhone,
+        `Gestionar cita: ${window.location.href}`
+      ].filter(Boolean).join("\n");
+
+      const nowUtc = toIcsUtcString(new Date());
+      const startUtc = toIcsUtcString(lastConfirmedBooking.start);
+      const endUtc = toIcsUtcString(lastConfirmedBooking.end);
+      const uid = `${lastConfirmedBooking.code}-${AGENDA_CODE}@sagsoftware.github.io`;
+
+      const icsLines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//SAG Software//Reservas PWA//ES",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "BEGIN:VEVENT",
+        `UID:${uid}`,
+        `DTSTAMP:${nowUtc}`,
+        `DTSTART:${startUtc}`,
+        `DTEND:${endUtc}`,
+        `SUMMARY:${escapeIcsText(summary)}`,
+        `DESCRIPTION:${escapeIcsText(description)}`,
+        `LOCATION:${escapeIcsText(bizName)}`,
+        "STATUS:CONFIRMED",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT24H",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeIcsText("Recordatorio: mañana tienes cita en " + bizName)}`,
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "TRIGGER:-PT1H",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeIcsText("Recordatorio: en 1 hora tienes cita en " + bizName)}`,
+        "END:VALARM",
+        "END:VEVENT",
+        "END:VCALENDAR"
+      ].join("\r\n");
+
+      const blob = new Blob([icsLines], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Cita_${lastConfirmedBooking.code}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    function openGoogleCalendarReminder() {
+      if (!lastConfirmedBooking) return;
+      const bizName = (CONFIG && CONFIG.nombreNegocio) || ("Agenda " + AGENDA_CODE);
+      const bizPhone = (CONFIG && CONFIG.telefonoContacto) ? `Tel: ${CONFIG.telefonoContacto}` : "";
+      const title = `Cita: ${lastConfirmedBooking.serviceName} - ${bizName}`;
+      const details = [
+        `Reserva confirmada en ${bizName}`,
+        `Servicio: ${lastConfirmedBooking.serviceName}`,
+        `Código de reserva: ${lastConfirmedBooking.code}`,
+        bizPhone,
+        `Gestionar o cancelar cita: ${window.location.href}`
+      ].filter(Boolean).join("\n");
+
+      const datesParam = `${toIcsUtcString(lastConfirmedBooking.start)}/${toIcsUtcString(lastConfirmedBooking.end)}`;
+      const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${encodeURIComponent(datesParam)}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(bizName)}`;
+      window.open(gcalUrl, "_blank", "noopener");
+    }
+
+    function openManageScreen() {
+      foundReservation = null;
+      manageSelectedStart = null;
+      document.getElementById("manageError").style.display = "none";
+      document.getElementById("manageResultCard").style.display = "none";
+      showScreen("screenManage");
+    }
+
+    async function lookupReservation() {
+      const phone = document.getElementById("managePhone").value.trim();
+      const code = document.getElementById("manageCode").value.trim().toUpperCase();
+      const errBox = document.getElementById("manageError");
+      errBox.style.display = "none";
+      document.getElementById("manageResultCard").style.display = "none";
+
+      if (!phone || !code) {
+        errBox.textContent = "Introduce tu teléfono y tu código de reserva.";
+        errBox.style.display = "block";
+        return;
+      }
+
+      const btn = document.getElementById("btnLookup");
+      btn.disabled = true;
+      btn.textContent = "Buscando...";
+
+      try {
+        const res = await apiCall("lookupBooking", { phone, reservationCode: code });
+        btn.disabled = false;
+        btn.textContent = "Buscar mi cita";
+
+        if (res.resultCode !== "OK" || !res.data) {
+          errBox.textContent = res.resultMessage;
+          errBox.style.display = "block";
+          return;
+        }
+
+        foundReservation = { ...res.data, phone, reservationCode: code };
+        const st = new Date(foundReservation.startIso);
+        const en = new Date(foundReservation.endIso);
+        selectedService = (CONFIG.servicios || []).find(s => s.id === foundReservation.serviceId)
+          || { id: foundReservation.serviceId, nombre: foundReservation.serviceName, duracionMinutos: Math.round((en - st) / 60000) || 30 };
+
+        document.getElementById("manageDetails").innerHTML = `
+          <strong>Servicio:</strong> ${foundReservation.serviceName}<br/>
+          <strong>Fecha actual:</strong> ${formatDateLongEs(st)}<br/>
+          <strong>Hora actual:</strong> ${formatTimeHM(st)} - ${formatTimeHM(en)}<br/>
+          <strong>Titular:</strong> ${foundReservation.firstName} ${foundReservation.lastName}
+        `;
+
+        manageDate = new Date(st);
+        manageDate.setHours(0, 0, 0, 0);
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        if (manageDate < today) manageDate = today;
+
+        document.getElementById("manageResultCard").style.display = "flex";
+        loadManageSlots();
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Buscar mi cita";
+        errBox.textContent = e.message;
+        errBox.style.display = "block";
+      }
+    }
+
+    function changeManageDay(delta) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const next = new Date(manageDate);
+      next.setDate(next.getDate() + delta);
+      if (next < today) return;
+      manageDate = next;
+      loadManageSlots();
+    }
+
+    async function loadManageSlots() {
+      manageSelectedStart = null;
+      document.getElementById("btnConfirmModify").disabled = true;
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      document.getElementById("btnManagePrevDay").disabled = manageDate <= today;
+      document.getElementById("manageDateLabel").textContent = formatDateLongEs(manageDate);
+
+      const grid = document.getElementById("manageSlotsGrid");
+      grid.innerHTML = "<div class='loader' style='grid-column:span 3; color:var(--primary); text-shadow:none;'>Cargando horas...</div>";
+
+      const dayKey = DAYS_EN[manageDate.getDay()];
+      const ranges = (CONFIG.horariosSemanales || {})[dayKey] || [];
+      if (!ranges.length) {
+        grid.innerHTML = "<div style='grid-column:span 3; text-align:center; color:#64748B;'>Cerrado este día</div>";
+        return;
+      }
+
+      const res = await apiCall("getAvailability", { date: formatDateYMD(manageDate) });
+      const occupied = ((res.data && res.data.occupiedIntervals) || []).map(iv => ({
+        start: new Date(iv.start).getTime(),
+        end: new Date(iv.end).getTime()
+      }));
+
+      renderSlotGrid(grid, manageDate, ranges, occupied, (st, en, btnEl) => {
+        grid.querySelectorAll(".slot-btn").forEach(b => b.classList.remove("selected"));
+        btnEl.classList.add("selected");
+        manageSelectedStart = st;
+        manageSelectedEnd = en;
+        document.getElementById("btnConfirmModify").disabled = false;
+      });
+    }
+
+    async function confirmModifyBooking() {
+      if (!foundReservation || !manageSelectedStart) return;
+      const btn = document.getElementById("btnConfirmModify");
+      btn.disabled = true;
+      btn.textContent = "Guardando cambios...";
+
+      try {
+        const res = await apiCall("modifyBooking", {
+          eventId: foundReservation.eventId,
+          phone: foundReservation.phone,
+          reservationCode: foundReservation.reservationCode,
+          newStartIso: manageSelectedStart.toISOString(),
+          newEndIso: manageSelectedEnd.toISOString(),
+          serviceId: selectedService.id,
+          serviceName: selectedService.nombre
+        });
+        btn.disabled = false;
+        btn.textContent = "Guardar nuevo horario";
+
+        if (res.resultCode !== "OK") {
+          alert(res.resultMessage);
+          return;
+        }
+
+        lastConfirmedBooking = {
+          code: foundReservation.reservationCode,
+          serviceName: selectedService.nombre,
+          start: new Date(manageSelectedStart),
+          end: new Date(manageSelectedEnd),
+          clientName: `${foundReservation.firstName || ""} ${foundReservation.lastName || ""}`.trim()
+        };
+
+        document.getElementById("confirmedCode").textContent = foundReservation.reservationCode;
+        document.getElementById("confirmedDetails").innerHTML = `
+          <strong>Servicio:</strong> ${selectedService.nombre}<br/>
+          <strong>Nueva fecha:</strong> ${formatDateLongEs(manageDate)}<br/>
+          <strong>Nuevo horario:</strong> ${formatTimeHM(manageSelectedStart)} - ${formatTimeHM(manageSelectedEnd)}
+        `;
+        showScreen("screenConfirmed");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Guardar nuevo horario";
+        alert(e.message);
+      }
+    }
+
+    async function confirmCancelBooking() {
+      if (!foundReservation) return;
+      if (!confirm("¿Seguro que deseas cancelar tu cita definitivamente?")) return;
+
+      const btn = document.getElementById("btnConfirmCancel");
+      btn.disabled = true;
+      btn.textContent = "Cancelando...";
+
+      try {
+        const res = await apiCall("cancelBooking", {
+          eventId: foundReservation.eventId,
+          phone: foundReservation.phone,
+          reservationCode: foundReservation.reservationCode
+        });
+        btn.disabled = false;
+        btn.textContent = "Cancelar cita definitivamente";
+
+        if (res.resultCode !== "OK") {
+          alert(res.resultMessage);
+          return;
+        }
+        const info = document.getElementById("homeInfoMsg");
+        info.textContent = "Tu cita ha sido cancelada correctamente.";
+        info.style.display = "block";
+        showScreen("screenHome");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Cancelar cita definitivamente";
+        alert(e.message);
+      }
+    }
+
+    // Instalación en pantalla de inicio (tarjeta central)
+    let deferredPrompt = null;
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    function setupInstallCard(bizName) {
+      const card = document.getElementById("installCard");
+      const textEl = document.getElementById("installCardText");
+      const btnInstall = document.getElementById("btnInstallApp");
+      const hintEl = document.getElementById("directBookHint");
+
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+      if (isStandalone) {
+        card.style.display = "none";
+        if (hintEl) hintEl.style.display = "none";
+        return;
+      }
+
+      textEl.innerHTML = `Instala <strong>${bizName}</strong> en tu móvil como una App: pulsa <strong>Instalar</strong> y se te añadirá en la pantalla de inicio.`;
+
+      btnInstall.onclick = async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+          deferredPrompt = null;
+        } else {
+          const isIos = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+          if (isIos) {
+            alert(`Para instalar ${bizName} en tu iPhone:\n\n1. Pulsa el icono Compartir (□↑) abajo en Safari.\n2. Selecciona "Añadir a pantalla de inicio".`);
+          } else {
+            alert(`Para instalar ${bizName} en tu móvil:\n\n1. Pulsa el menú del navegador (⋮ arriba a la derecha).\n2. Selecciona "Instalar aplicación" o "Añadir a pantalla de inicio".`);
+          }
+        }
+      };
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
