@@ -603,8 +603,16 @@
       const bizName = cfg.nombreNegocio || ("Agenda " + AGENDA_CODE);
       const primary = cfg.colorPrimario || "#1565C0";
       const defaultAppIcon = getAbsoluteAssetUrl("icono_app.png");
-      const iconUrl = (cfg.logoDataUri && cfg.logoDataUri.startsWith("data:image/"))
+
+      // Logo para la portada
+      const logoUrl = (cfg.logoDataUri && cfg.logoDataUri.startsWith("data:image/"))
         ? cfg.logoDataUri
+        : defaultAppIcon;
+
+      // Icono para acceso directo / favicon (prioriza icono propio; si no existe, usa icono_app.png)
+      const customIcon = cfg.iconDataUri || cfg.iconoAppDataUri || "";
+      const appIconUrl = (customIcon && customIcon.startsWith("data:image/"))
+        ? customIcon
         : defaultAppIcon;
 
       document.documentElement.style.setProperty("--primary", primary);
@@ -614,10 +622,10 @@
       document.title = bizName;
       document.getElementById("themeColorMeta").setAttribute("content", primary);
       document.getElementById("appleTitleMeta").setAttribute("content", bizName);
-      document.getElementById("faviconLink").setAttribute("href", iconUrl);
-      document.getElementById("appleTouchIcon").setAttribute("href", iconUrl);
+      document.getElementById("faviconLink").setAttribute("href", appIconUrl);
+      document.getElementById("appleTouchIcon").setAttribute("href", appIconUrl);
 
-      document.getElementById("homeLogo").src = iconUrl;
+      document.getElementById("homeLogo").src = logoUrl;
       document.getElementById("homeBizName").textContent = bizName;
       document.getElementById("homeBizPhone").textContent = cfg.telefonoContacto ? ("Tel: " + cfg.telefonoContacto) : "";
 
@@ -630,8 +638,8 @@
         background_color: "#061c3d",
         theme_color: primary,
         icons: [
-          { src: iconUrl, sizes: "192x192", type: "image/png" },
-          { src: iconUrl, sizes: "512x512", type: "image/png" }
+          { src: appIconUrl, sizes: "192x192", type: "image/png" },
+          { src: appIconUrl, sizes: "512x512", type: "image/png" }
         ]
       };
       const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
