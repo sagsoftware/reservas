@@ -3,110 +3,213 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panel de Gestión de Citas · SAG</title>
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <title>Panel de Agenda</title>
   <style>
+    :root {
+      --primary: #1565C0;
+      --bg: #EEF2F6;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --text: #0F172A;
+      --muted: #64748B;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Segoe UI', Roboto, sans-serif;
-      background: #F1F5F9;
-      color: #1E293B;
-      padding: 24px 16px;
-      display: flex;
-      justify-content: center;
+      font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 28px 16px;
     }
-    .container {
-      width: 100%;
-      max-width: 960px;
-      background: #FFFFFF;
-      border-radius: 16px;
-      padding: 24px;
-      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+    .panel-box {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--surface);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
     }
-    h1 { font-size: 1.45rem; color: #0F172A; margin-bottom: 4px; }
-    .subtitle { font-size: 0.9rem; color: #64748B; margin-bottom: 20px; }
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      background: #F8FAFC;
-      padding: 14px;
-      border-radius: 12px;
-      border: 1px solid #E2E8F0;
+    .header {
       margin-bottom: 18px;
     }
-    input {
+    .header h1 {
+      font-size: 1.65rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .header .sub {
+      font-size: 0.92rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+    .toolbar {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    input[type="password"], input[type="date"] {
       padding: 10px 14px;
       border: 1.5px solid #CBD5E1;
       border-radius: 10px;
       font-size: 0.95rem;
-      background: #fff;
+      background: #FFFFFF;
+      color: var(--text);
+      outline: none;
     }
-    input:focus { outline: none; border-color: #1565C0; }
+    input[type="password"]:focus, input[type="date"]:focus {
+      border-color: var(--primary);
+    }
     button {
-      padding: 10px 18px;
+      padding: 10px 16px;
       border: none;
       border-radius: 10px;
+      font-size: 0.92rem;
       font-weight: 700;
-      font-size: 0.95rem;
       cursor: pointer;
+      color: #FFFFFF;
+      transition: opacity 0.15s;
     }
-    .btn-primary { background: #1565C0; color: #fff; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-danger { background: #DC2626; color: #fff; padding: 6px 12px; font-size: 0.85rem; }
-    .status {
-      padding: 10px 14px;
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); }
+    .btn-tomorrow { background: #0284C7; }
+    .btn-wa-batch { background: #16A34A; }
+    .btn-wa {
+      background: #16A34A;
+      padding: 7px 12px;
+      font-size: 0.84rem;
+      border-radius: 8px;
+    }
+    .btn-cancel {
+      background: #DC2626;
+      padding: 7px 12px;
+      font-size: 0.84rem;
+      border-radius: 8px;
+    }
+    .status-banner {
+      background: #ECFDF5;
+      border: 1px solid #86EFAC;
+      color: #166534;
+      padding: 12px 16px;
       border-radius: 10px;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       font-weight: 600;
-      margin-bottom: 14px;
-      display: none;
+      margin-bottom: 16px;
     }
-    .status.error { display: block; background: #FEF2F2; color: #B91C1C; border: 1px solid #FCA5A5; }
-    .status.ok { display: block; background: #ECFDF5; color: #065F46; border: 1px solid #6EE7B7; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #E2E8F0; font-size: 0.92rem; }
-    th { background: #F8FAFC; color: #475569; font-weight: 700; }
-    .badge {
+    .status-banner.error {
+      background: #FEF2F2;
+      border-color: #FCA5A5;
+      color: #B91C1C;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      background: #F1F5F9;
+      color: #334155;
+      font-weight: 700;
+      font-size: 0.88rem;
+      text-align: left;
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody td {
+      padding: 14px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.94rem;
+      vertical-align: middle;
+    }
+    .code-pill {
       display: inline-block;
       background: #DBEAFE;
       color: #1E40AF;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-weight: 700;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 800;
       font-size: 0.82rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
     }
-    .empty { text-align: center; padding: 32px; color: #64748B; font-size: 0.95rem; }
+    .badge-sent {
+      display: inline-block;
+      background: #DCFCE7;
+      color: #166534;
+      border: 1px solid #86EFAC;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .badge-pending {
+      display: inline-block;
+      background: #FEF9C3;
+      color: #854D0E;
+      border: 1px solid #FDE047;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+    .actions-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1 id="panelTitle">Panel de Gestión de Citas</h1>
-    <div id="panelSubtitle" class="subtitle">Cargando datos de la agenda...</div>
-
-    <div class="toolbar">
-      <input type="password" id="adminPass" placeholder="Clave del panel (ej. admin)" />
-      <input type="date" id="datePick" />
-      <button id="btnLoad" class="btn-primary" onclick="cargarCitas()">Cargar Citas</button>
+  <div class="panel-box">
+    <div class="header">
+      <h1 id="panelTitle">Panel · Agenda</h1>
+      <div class="sub" id="panelSub">Cargando configuración...</div>
     </div>
 
-    <div id="statusMsg" class="status"></div>
+    <div class="toolbar">
+      <input type="password" id="adminPass" placeholder="Clave Panel" />
+      <input type="date" id="filterDate" />
+      <button class="btn-primary" onclick="loadBookings()">Cargar Citas</button>
+      <button class="btn-tomorrow" onclick="loadTomorrowBookings()">Ver Mañana</button>
+      <button class="btn-wa-batch" onclick="sendBatchTomorrowWa()">Avisar Pendientes de Mañana (WhatsApp)</button>
+    </div>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Horario</th>
-          <th>Cliente / Paciente</th>
-          <th>Teléfono</th>
-          <th>Servicio / Motivo</th>
-          <th>Código</th>
-          <th>Acción</th>
-        </tr>
-      </thead>
-      <tbody id="tbodyCitas">
-        <tr><td colspan="6" class="empty">Introduce la clave del panel y pulsa "Cargar Citas".</td></tr>
-      </tbody>
-    </table>
+    <div id="statusBanner" class="status-banner" style="display:none;"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Horario</th>
+            <th>Cliente / Paciente</th>
+            <th>Teléfono</th>
+            <th>Servicio / Motivo</th>
+            <th>Código</th>
+            <th>Aviso WA</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody id="bookingsBody">
+          <tr>
+            <td colspan="7" style="text-align:center; color:#64748B; padding:20px;">
+              Introduce la clave del panel y pulsa "Cargar Citas".
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <script>
@@ -114,117 +217,295 @@
     const params = new URLSearchParams(window.location.search);
     const AGENDA_CODE = (params.get("agenda") || "").trim().toUpperCase();
 
-    document.getElementById("datePick").value = new Date().toISOString().slice(0, 10);
+    let BIZ_NAME = AGENDA_CODE;
+    let currentBookings = [];
 
-    function showStatus(msg, isError) {
-      const el = document.getElementById("statusMsg");
+    function toYMD(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function getTomorrowYMD() {
+      const t = new Date();
+      t.setDate(t.getDate() + 1);
+      return toYMD(t);
+    }
+
+    document.getElementById("filterDate").value = toYMD(new Date());
+
+    function showBanner(msg, isError) {
+      const el = document.getElementById("statusBanner");
       el.textContent = msg;
-      el.className = "status " + (isError ? "error" : "ok");
+      el.className = "status-banner" + (isError ? " error" : "");
+      el.style.display = "block";
     }
 
-    async function apiCall(action, payloadObj) {
-      const resp = await fetch(MASTER_GAS_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          action: action,
-          agendaCode: AGENDA_CODE,
-          payload: payloadObj || {}
-        })
-      });
-      return await resp.json();
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
     }
 
-    async function init() {
+    async function initPanel() {
       if (!AGENDA_CODE) {
-        document.getElementById("panelSubtitle").textContent = "Falta ?agenda=CODIGO en la URL.";
+        document.getElementById("panelSub").textContent = "Falta el parámetro ?agenda=CODIGO en la URL.";
         return;
       }
+      document.getElementById("panelSub").textContent = `Agenda: ${AGENDA_CODE} · Conectando...`;
       try {
-        const res = await apiCall("getConfig", {});
-        if (res.resultCode === "OK" && res.data && res.data.config) {
-          const nombre = res.data.config.nombreNegocio || AGENDA_CODE;
-          document.getElementById("panelTitle").textContent = "Panel · " + nombre;
-          document.getElementById("panelSubtitle").textContent = "Agenda: " + AGENDA_CODE + " · Estado: " + (res.data.status || "ACTIVO");
-        } else {
-          document.getElementById("panelSubtitle").textContent = res.resultMessage || "Agenda no encontrada.";
+        const res = await fetch(MASTER_GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "getConfig",
+            agendaCode: AGENDA_CODE,
+            payload: {}
+          })
+        }).then(r => r.json());
+
+        if (res.resultCode === "OK" && res.data) {
+          const cfg = res.data.config || {};
+          const status = res.data.status || "ACTIVO";
+          BIZ_NAME = cfg.nombreNegocio || AGENDA_CODE;
+          if (cfg.colorPrimario) {
+            document.documentElement.style.setProperty("--primary", cfg.colorPrimario);
+          }
+          document.title = `Panel · ${BIZ_NAME}`;
+          document.getElementById("panelTitle").textContent = `Panel · ${BIZ_NAME}`;
+          document.getElementById("panelSub").textContent = `Agenda: ${AGENDA_CODE} · Estado: ${status}`;
         }
       } catch (e) {
-        document.getElementById("panelSubtitle").textContent = "Error conectando: " + e.message;
+        document.getElementById("panelSub").textContent = `Agenda: ${AGENDA_CODE}`;
       }
     }
 
-    async function cargarCitas() {
-      const pass = document.getElementById("adminPass").value.trim();
-      const date = document.getElementById("datePick").value;
-      const tbody = document.getElementById("tbodyCitas");
-      const btn = document.getElementById("btnLoad");
+    function normalizeWaPhone(raw) {
+      let digits = String(raw || "").replace(/\D/g, "");
+      if (!digits) return "";
+      if (digits.startsWith("00")) digits = digits.slice(2);
+      if (digits.length === 9 && /^[6789]/.test(digits)) {
+        return "34" + digits;
+      }
+      return digits;
+    }
 
+    function waStorageKey(b) {
+      return `wa_notified_${AGENDA_CODE}_${b.bookingId || ""}_${b.startIso || ""}`;
+    }
+
+    function isWaNotified(b) {
+      try { return localStorage.getItem(waStorageKey(b)) === "1"; } catch (e) { return false; }
+    }
+
+    function markWaNotified(b) {
+      try { localStorage.setItem(waStorageKey(b), "1"); } catch (e) {}
+    }
+
+    function buildWaUrl(b) {
+      const waPhone = normalizeWaPhone(b.phone);
+      if (!waPhone) return "";
+      const dtStart = new Date(b.startIso);
+      const fechaEs = dtStart.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+      const horaEs = dtStart.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+      const nombre = (b.firstName || "").trim() || "cliente";
+      const servicio = (b.serviceName || "tu cita").trim();
+      const cod = (b.reservationCode || "").trim();
+
+      const lines = [
+        `Hola ${nombre}, te recordamos tu cita en *${BIZ_NAME}*:`,
+        `📅 *Fecha:* ${fechaEs}`,
+        `⏰ *Hora:* ${horaEs}`,
+        `📋 *Servicio:* ${servicio}`
+      ];
+      if (cod) lines.push(`🔑 *Código:* ${cod}`);
+      lines.push("¡Te esperamos!");
+
+      return `https://wa.me/${waPhone}?text=${encodeURIComponent(lines.join("\n"))}`;
+    }
+
+    function openSingleWa(idx) {
+      const b = currentBookings[idx];
+      if (!b) return;
+      const url = buildWaUrl(b);
+      if (!url) {
+        alert("Esta cita no tiene un teléfono válido registrado.");
+        return;
+      }
+      markWaNotified(b);
+      renderTable();
+      window.open(url, "_blank", "noopener");
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("bookingsBody");
+      tbody.innerHTML = "";
+
+      if (!currentBookings.length) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#64748B; padding:20px;">No hay citas registradas para esta fecha.</td></tr>`;
+        return;
+      }
+
+      currentBookings.forEach((b, idx) => {
+        const hIni = new Date(b.startIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+        const hFin = new Date(b.endIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+        const fullName = `${b.firstName || ""} ${b.lastName || ""}`.trim() || b.title;
+        const waPhone = normalizeWaPhone(b.phone);
+        const notified = isWaNotified(b);
+
+        const waBadge = !waPhone
+          ? `<span style="color:#94A3B8; font-size:0.8rem;">Sin tel.</span>`
+          : (notified
+              ? `<span class="badge-sent">✓ Avisado</span>`
+              : `<span class="badge-pending">Pendiente</span>`);
+
+        const waButton = waPhone
+          ? `<button class="btn-wa" onclick="openSingleWa(${idx})">WhatsApp</button>`
+          : "";
+
+        const codeBadge = b.reservationCode
+          ? `<span class="code-pill">${escapeHtml(b.reservationCode)}</span>`
+          : `-`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${hIni} - ${hFin}</strong></td>
+          <td>${escapeHtml(fullName)}</td>
+          <td>${escapeHtml(b.phone || "-")}</td>
+          <td>
+            ${escapeHtml(b.serviceName || b.title)}
+            ${b.reason ? `<br><small style="color:#64748B;">${escapeHtml(b.reason)}</small>` : ""}
+          </td>
+          <td>${codeBadge}</td>
+          <td>${waBadge}</td>
+          <td>
+            <div class="actions-group">
+              ${waButton}
+              <button class="btn-cancel" onclick="cancelBooking('${escapeHtml(b.bookingId)}')">Cancelar</button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function fetchBookingsForDate(ds) {
+      const pass = document.getElementById("adminPass").value;
       if (!pass) {
-        showStatus("Escribe la clave del panel.", true);
+        showBanner("Introduce la clave del panel antes de consultar las citas.", true);
+        return null;
+      }
+
+      showBanner(`Consultando citas para el ${ds}...`, false);
+      try {
+        const res = await fetch(MASTER_GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "adminListBookings",
+            agendaCode: AGENDA_CODE,
+            payload: {
+              adminPassword: pass,
+              startIso: new Date(`${ds}T00:00:00`).toISOString(),
+              endIso: new Date(`${ds}T23:59:59`).toISOString()
+            }
+          })
+        }).then(r => r.json());
+
+        if (res.resultCode !== "OK") {
+          showBanner(res.resultMessage || "Error cargando citas.", true);
+          return null;
+        }
+
+        currentBookings = ((res.data && res.data.bookings) || [])
+          .sort((a, b) => new Date(a.startIso) - new Date(b.startIso));
+
+        renderTable();
+        const pendientesWa = currentBookings.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b)).length;
+        showBanner(`Se han encontrado ${currentBookings.length} cita(s) para el ${ds} · Pendientes de aviso WhatsApp: ${pendientesWa}.`, false);
+        return currentBookings;
+      } catch (e) {
+        showBanner("Error de conexión: " + e.message, true);
+        return null;
+      }
+    }
+
+    async function loadBookings() {
+      const ds = document.getElementById("filterDate").value;
+      if (!ds) return;
+      await fetchBookingsForDate(ds);
+    }
+
+    async function loadTomorrowBookings() {
+      const tomorrow = getTomorrowYMD();
+      document.getElementById("filterDate").value = tomorrow;
+      await fetchBookingsForDate(tomorrow);
+    }
+
+    async function sendBatchTomorrowWa() {
+      const tomorrow = getTomorrowYMD();
+      document.getElementById("filterDate").value = tomorrow;
+      const list = await fetchBookingsForDate(tomorrow);
+      if (!list) return;
+
+      const pendientes = list.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b));
+      if (!pendientes.length) {
+        alert(`No quedan citas pendientes de avisar por WhatsApp para mañana (${tomorrow}).`);
         return;
       }
 
-      btn.disabled = true;
-      btn.textContent = "Cargando...";
-      document.getElementById("statusMsg").className = "status";
+      if (!confirm(`Hay ${pendientes.length} cita(s) pendiente(s) de avisar para mañana (${tomorrow}).\n\nSe abrirá WhatsApp para cada cliente uno por uno y se marcarán como avisados. ¿Comenzar?`)) {
+        return;
+      }
 
+      for (let i = 0; i < pendientes.length; i++) {
+        const b = pendientes[i];
+        const url = buildWaUrl(b);
+        const hora = new Date(b.startIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+        const nombre = `${b.firstName || ""} ${b.lastName || ""}`.trim() || b.phone;
+
+        if (i > 0) {
+          const seguir = confirm(`Siguiente aviso (${i + 1} de ${pendientes.length}):\n${hora} - ${nombre} (${b.phone})\n\nPulsa Aceptar para abrir su WhatsApp o Cancelar para detener.`);
+          if (!seguir) break;
+        }
+
+        markWaNotified(b);
+        renderTable();
+        window.open(url, "_blank", "noopener");
+      }
+
+      const restantes = currentBookings.filter(b => normalizeWaPhone(b.phone) && !isWaNotified(b)).length;
+      showBanner(`Se han encontrado ${currentBookings.length} cita(s) para el ${tomorrow} · Pendientes de aviso WhatsApp: ${restantes}.`, false);
+    }
+
+    async function cancelBooking(bookingId) {
+      if (!confirm("¿Seguro que deseas cancelar esta cita definitivamente?")) return;
+      const pass = document.getElementById("adminPass").value;
       try {
-        const res = await apiCall("panelListBookings", { adminPassword: pass, date: date });
-        btn.disabled = false;
-        btn.textContent = "Cargar Citas";
+        const res = await fetch(MASTER_GAS_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "adminCancelBooking",
+            agendaCode: AGENDA_CODE,
+            payload: {
+              adminPassword: pass,
+              bookingId: bookingId
+            }
+          })
+        }).then(r => r.json());
 
-        if (res.resultCode !== "OK") {
-          showStatus(res.resultMessage || "Clave incorrecta o error al cargar.", true);
-          tbody.innerHTML = "";
-          return;
+        if (res.resultCode === "OK") {
+          loadBookings();
+        } else {
+          alert(res.resultMessage || "No se pudo cancelar la cita.");
         }
-
-        const list = (res.data && res.data.bookings) || [];
-        showStatus("Se han encontrado " + list.length + " cita(s) para el " + date + ".", false);
-
-        if (!list.length) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay citas reservadas para este día.</td></tr>';
-          return;
-        }
-
-        tbody.innerHTML = "";
-        list.forEach(b => {
-          const hIni = new Date(b.startIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-          const hFin = new Date(b.endIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><strong>${hIni} - ${hFin}</strong></td>
-            <td>${b.firstName || ""} ${b.lastName || ""}</td>
-            <td>${b.phone || "-"}</td>
-            <td>${b.serviceName || ""}${b.reason ? "<br><small style='color:#64748B'>" + b.reason + "</small>" : ""}</td>
-            <td><span class="badge">${b.reservationCode || "-"}</span></td>
-            <td><button class="btn-danger" onclick="cancelarCita('${b.eventId}')">Cancelar</button></td>
-          `;
-          tbody.appendChild(tr);
-        });
       } catch (e) {
-        btn.disabled = false;
-        btn.textContent = "Cargar Citas";
-        showStatus("Error de red: " + e.message, true);
+        alert("Error de conexión: " + e.message);
       }
     }
 
-    async function cancelarCita(eventId) {
-      if (!confirm("¿Seguro que deseas cancelar esta cita del calendario?")) return;
-      const pass = document.getElementById("adminPass").value.trim();
-      try {
-        const res = await apiCall("panelCancelBooking", { adminPassword: pass, eventId: eventId });
-        if (res.resultCode !== "OK") {
-          showStatus(res.resultMessage || "No se pudo cancelar.", true);
-          return;
-        }
-        cargarCitas();
-      } catch (e) {
-        showStatus("Error al cancelar: " + e.message, true);
-      }
-    }
-
-    init();
+    initPanel();
   </script>
 </body>
 </html>
