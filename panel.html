@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panel de Gestión de Citas · SAG</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      background: #F1F5F9;
+      color: #1E293B;
+      padding: 24px 16px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 960px;
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+    }
+    h1 { font-size: 1.45rem; color: #0F172A; margin-bottom: 4px; }
+    .subtitle { font-size: 0.9rem; color: #64748B; margin-bottom: 20px; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      background: #F8FAFC;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid #E2E8F0;
+      margin-bottom: 18px;
+    }
+    input {
+      padding: 10px 14px;
+      border: 1.5px solid #CBD5E1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    input:focus { outline: none; border-color: #1565C0; }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .btn-primary { background: #1565C0; color: #fff; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-danger { background: #DC2626; color: #fff; padding: 6px 12px; font-size: 0.85rem; }
+    .status {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+      display: none;
+    }
+    .status.error { display: block; background: #FEF2F2; color: #B91C1C; border: 1px solid #FCA5A5; }
+    .status.ok { display: block; background: #ECFDF5; color: #065F46; border: 1px solid #6EE7B7; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #E2E8F0; font-size: 0.92rem; }
+    th { background: #F8FAFC; color: #475569; font-weight: 700; }
+    .badge {
+      display: inline-block;
+      background: #DBEAFE;
+      color: #1E40AF;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.82rem;
+    }
+    .empty { text-align: center; padding: 32px; color: #64748B; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="panelTitle">Panel de Gestión de Citas</h1>
+    <div id="panelSubtitle" class="subtitle">Cargando datos de la agenda...</div>
+
+    <div class="toolbar">
+      <input type="password" id="adminPass" placeholder="Clave del panel (ej. admin)" />
+      <input type="date" id="datePick" />
+      <button id="btnLoad" class="btn-primary" onclick="cargarCitas()">Cargar Citas</button>
+    </div>
+
+    <div id="statusMsg" class="status"></div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Horario</th>
+          <th>Cliente / Paciente</th>
+          <th>Teléfono</th>
+          <th>Servicio / Motivo</th>
+          <th>Código</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyCitas">
+        <tr><td colspan="6" class="empty">Introduce la clave del panel y pulsa "Cargar Citas".</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const MASTER_GAS_URL = "https://script.google.com/macros/s/AKfycbwVtvLD2Q_ZR2AVEGpzmSi4cPvASPJIUgUvmvJkKwDKOv-lj_8v6JtBxb1TPOs9FMU4/exec";
+    const params = new URLSearchParams(window.location.search);
+    const AGENDA_CODE = (params.get("agenda") || "").trim().toUpperCase();
+
+    document.getElementById("datePick").value = new Date().toISOString().slice(0, 10);
+
+    function showStatus(msg, isError) {
+      const el = document.getElementById("statusMsg");
+      el.textContent = msg;
+      el.className = "status " + (isError ? "error" : "ok");
+    }
+
+    async function apiCall(action, payloadObj) {
+      const resp = await fetch(MASTER_GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          action: action,
+          agendaCode: AGENDA_CODE,
+          payload: payloadObj || {}
+        })
+      });
+      return await resp.json();
+    }
+
+    async function init() {
+      if (!AGENDA_CODE) {
+        document.getElementById("panelSubtitle").textContent = "Falta ?agenda=CODIGO en la URL.";
+        return;
+      }
+      try {
+        const res = await apiCall("getConfig", {});
+        if (res.resultCode === "OK" && res.data && res.data.config) {
+          const nombre = res.data.config.nombreNegocio || AGENDA_CODE;
+          document.getElementById("panelTitle").textContent = "Panel · " + nombre;
+          document.getElementById("panelSubtitle").textContent = "Agenda: " + AGENDA_CODE + " · Estado: " + (res.data.status || "ACTIVO");
+        } else {
+          document.getElementById("panelSubtitle").textContent = res.resultMessage || "Agenda no encontrada.";
+        }
+      } catch (e) {
+        document.getElementById("panelSubtitle").textContent = "Error conectando: " + e.message;
+      }
+    }
+
+    async function cargarCitas() {
+      const pass = document.getElementById("adminPass").value.trim();
+      const date = document.getElementById("datePick").value;
+      const tbody = document.getElementById("tbodyCitas");
+      const btn = document.getElementById("btnLoad");
+
+      if (!pass) {
+        showStatus("Escribe la clave del panel.", true);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Cargando...";
+      document.getElementById("statusMsg").className = "status";
+
+      try {
+        const res = await apiCall("panelListBookings", { adminPassword: pass, date: date });
+        btn.disabled = false;
+        btn.textContent = "Cargar Citas";
+
+        if (res.resultCode !== "OK") {
+          showStatus(res.resultMessage || "Clave incorrecta o error al cargar.", true);
+          tbody.innerHTML = "";
+          return;
+        }
+
+        const list = (res.data && res.data.bookings) || [];
+        showStatus("Se han encontrado " + list.length + " cita(s) para el " + date + ".", false);
+
+        if (!list.length) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty">No hay citas reservadas para este día.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = "";
+        list.forEach(b => {
+          const hIni = new Date(b.startIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+          const hFin = new Date(b.endIso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><strong>${hIni} - ${hFin}</strong></td>
+            <td>${b.firstName || ""} ${b.lastName || ""}</td>
+            <td>${b.phone || "-"}</td>
+            <td>${b.serviceName || ""}${b.reason ? "<br><small style='color:#64748B'>" + b.reason + "</small>" : ""}</td>
+            <td><span class="badge">${b.reservationCode || "-"}</span></td>
+            <td><button class="btn-danger" onclick="cancelarCita('${b.eventId}')">Cancelar</button></td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "Cargar Citas";
+        showStatus("Error de red: " + e.message, true);
+      }
+    }
+
+    async function cancelarCita(eventId) {
+      if (!confirm("¿Seguro que deseas cancelar esta cita del calendario?")) return;
+      const pass = document.getElementById("adminPass").value.trim();
+      try {
+        const res = await apiCall("panelCancelBooking", { adminPassword: pass, eventId: eventId });
+        if (res.resultCode !== "OK") {
+          showStatus(res.resultMessage || "No se pudo cancelar.", true);
+          return;
+        }
+        cargarCitas();
+      } catch (e) {
+        showStatus("Error al cancelar: " + e.message, true);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
